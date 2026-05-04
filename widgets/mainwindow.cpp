@@ -173,9 +173,10 @@ extern "C" {
 
   void save_echo_params_(int* ndoptotal, int* ndop, int* nfrit, float* f1, float* fspread, short id2[], int* idir);
 
-  void avecho_( short id2[], int* dop, int* nfrit, int* nauto, int* navg, int* nqual, float* f1,
-                float* level, float* sigdb, float* snr, float* dfreq,
-                float* width, bool* bDiskData);
+  void avecho_( short id2[], int* dop, int* nfrit, int* nauto, int* ndf, int* navg, int* nqual,
+                float* f1, float* level, float* sigdb, float* snr, float* dfreq,
+                float* width, bool* bDiskData, bool* bEchoCall,
+                char* txcall, char* rxcall, FCL txcall_len, FCL rxcall_len);
 
   void fast_decode_(short id2[], int narg[], double * trperiod,
                     char msg[], char mycall[], char hiscall[],
@@ -2171,15 +2172,20 @@ void MainWindow::dataSink(qint64 frames)
       float width=m_fSpread;
       echocom_.nclearave=m_nclearave;
       int nDop=m_fAudioShift;
-      if(m_astroWidget->DopplerMethod()==2) nDop=0;   //Using CFOM
+      if(m_astroWidget && m_astroWidget->DopplerMethod()==2) nDop=0;   //Using CFOM
       int nDopTotal=m_fDop;
+      int ndf=0;
       int navg=ui->sbEchoAvg->value();
+      bool bEchoCall=false;
+      QByteArray txCallBa = (m_config.my_callsign ().toUpper () + "      ").left (6).toLatin1 ();
+      QByteArray rxCallBa {"      "};
       if(m_diskData) {
         int idir=-1;
         save_echo_params_(&nDopTotal,&nDop,&nfrit,&f1,&width,dec_data.d2,&idir);
       }
-      avecho_(dec_data.d2,&nDop,&nfrit,&nauto,&navg,&nqual,&f1,&xlevel,&sigdb,
-          &dBerr,&dfreq,&width,&m_diskData);
+      avecho_(dec_data.d2,&nDop,&nfrit,&nauto,&ndf,&navg,&nqual,&f1,&xlevel,&sigdb,
+          &dBerr,&dfreq,&width,&m_diskData,&bEchoCall,
+          txCallBa.data(),rxCallBa.data(),6,6);
       //Don't restart Monitor after an Echo transmission
       if(m_bEchoTxed and !m_auto) {
         monitor(false);
@@ -4211,6 +4217,10 @@ void MainWindow::decode()                                       //decode()
   if(dec_data.params.nfSplit==8) dec_data.params.nfSplit=1;
 
   dec_data.params.nfb=m_wideGraph->Fmax();
+  if (m_diskData && (m_mode=="FT8" || m_mode=="FT4" || m_mode=="FT2")) {
+    dec_data.params.nfa = 200;
+    dec_data.params.nfb = 4000;
+  }
   if(m_mode=="FT8" and SpecOp::HOUND==m_specOp and !ui->cbRxAll->isChecked() and
      !m_config.superFox()) dec_data.params.nfb=1000;
   if(m_mode=="FT8" and SpecOp::FOX == m_specOp ) dec_data.params.nfqso=200;
@@ -4861,7 +4871,8 @@ void MainWindow::readFromStdout()                             //readFromStdout
   // append happens here too (orig appends after display; we do it inline).
   bool const mtft8 = (m_mode == "FT8")
       && ui->actionUse_multithreaded_FT8_decoder->isChecked();
-    bool const dedup_on = mtft8 &&
+  bool const hide_ft8_dupes = ui->actionHide_FT8_dupe_messages->isChecked();
+    bool const dedup_on = mtft8 && (hide_ft8_dupes || m_diskData) &&
       (m_ft8DecoderStart < 2
        || m_freqNominal > 45000000
        || ui->actionReduce_false_decodes->isChecked());
@@ -6207,11 +6218,14 @@ void MainWindow::guiUpdate()
           if (!ui->cbAutoCQ->isChecked())
         auto_tx_mode (false);
         if(b) {
-          m_ntx=6;
-          ui->txrb6->setChecked(true);
-          m_QSOProgress = CALLING;
-          //  Z
-          if (m_lastCall == m_hisCall) clearDX();
+          // In AutoCall-only mode, do not force Tx6/CQ after sending 73.
+          if (!ui->cbAutoCall->isChecked() || ui->cbAutoCQ->isChecked()) {
+            m_ntx=6;
+            ui->txrb6->setChecked(true);
+            m_QSOProgress = CALLING;
+            //  Z
+            if (m_lastCall == m_hisCall) clearDX();
+          }
         }
       }
     }
@@ -14523,38 +14537,48 @@ bool MainWindow::setFreeFreq() {
         return false;
     }
 
-    int newTxFreq = 0;
+  int newTxFreq = 0;
+  int const currentTxFreq = ui->TxFreqSpinBox->value();
+  auto const wide = m_config.autoFreqWide();
 
-    for (int f = 1500; f > 500; f -= 10)  {
-        if (isSlotFree(f)) {
-            newTxFreq = f;
-            break;
-        }
-    }
+  int minFreq = wide ? 200 : 500;
+  int maxFreq = wide ? 3000 : 2000;
 
-    if (newTxFreq == 0)
-    for (int f = 1500; f < 2000; f += 10)  {
-        if (isSlotFree(f)) {
-            newTxFreq = f;
-            break;
-        }
-    }
+  auto in_range = [minFreq, maxFreq] (int f) {
+    return f >= minFreq && f <= maxFreq;
+  };
 
-    if (newTxFreq == 0 && m_config.autoFreqWide())
-    for (int f = 2000; f <= 3000; f += 10)  {
-        if (isSlotFree(f)) {
-            newTxFreq = f;
-            break;
-        }
-    }
+  if (in_range(currentTxFreq) && isSlotFree(currentTxFreq)) {
+    newTxFreq = currentTxFreq;
+  }
 
-    if (newTxFreq == 0 && m_config.autoFreqWide())
-    for (int f = 500; f >= 200; f -= 10)  {
-        if (isSlotFree(f)) {
-            newTxFreq = f;
-            break;
-        }
+  if (newTxFreq == 0) {
+    auto wrap_freq = [minFreq, maxFreq] (int f) {
+      int const span = maxFreq - minFreq + 10;
+      while (f < minFreq) {
+        f += span;
+      }
+      while (f > maxFreq) {
+        f -= span;
+      }
+      return f;
+    };
+
+    int const maxDelta = maxFreq - minFreq;
+    for (int delta = 10; delta <= maxDelta; delta += 10) {
+      int below = wrap_freq(currentTxFreq - delta);
+      if (isSlotFree(below)) {
+        newTxFreq = below;
+        break;
+      }
+
+      int above = wrap_freq(currentTxFreq + delta);
+      if (above != below && isSlotFree(above)) {
+        newTxFreq = above;
+        break;
+      }
     }
+  }
 
     if(newTxFreq != 0) {
         if (m_zdebug) log("Free: " + QString::number(newTxFreq));

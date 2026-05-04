@@ -12,7 +12,6 @@
 #include <QXmlStreamReader>
 #include "logbook/AD1CCty.hpp"
 #include <QString>
-#include <QtConcurrent/QtConcurrent>
 
 PSKReporterWidget::PSKReporterWidget(QWidget *parent, Configuration * cfg, LogBook * log) :
     QWidget(parent),
@@ -64,7 +63,7 @@ void PSKReporterWidget::responseHandler(QNetworkReply * reply) {
     disconnect(networkManager, SIGNAL(finished(QNetworkReply*)), this, SLOT(responseHandler(QNetworkReply*)));
     if(reply->error() == QNetworkReply::NoError) {
        QString data = (QString)reply->readAll();
-       if (data.length()) QFuture<void> future = QtConcurrent::run (this, &PSKReporterWidget::updateTable, data);
+       if (data.length()) updateTable(data);
 
     } else {
         ui->pskTable->setRowCount(0);

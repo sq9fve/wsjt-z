@@ -3423,7 +3423,7 @@ Right click for insert and delete options.</string>
              </widget>
             </item>
             <item>
-             <spacer name="horizontalSpacer_15">
+            <spacer name="horizontalSpacer_15_otp">
               <property name="orientation">
                <enum>Qt::Horizontal</enum>
               </property>
@@ -3589,17 +3589,17 @@ Right click for insert and delete options.</string>
        </item>
       </layout>
      </widget>
-     <widget class="QWidget" name="tab">
+    <widget class="QWidget" name="wsjtz_tab">
       <attribute name="title">
        <string>WSJT-Z</string>
       </attribute>
-      <layout class="QGridLayout" name="gridLayout_18">
+    <layout class="QGridLayout" name="gridLayout_wsjtz">
        <item row="3" column="1" rowspan="2" colspan="2">
         <widget class="QGroupBox" name="groupBox_13">
          <property name="title">
           <string>Ignore List</string>
          </property>
-         <layout class="QGridLayout" name="gridLayout_17">
+         <layout class="QGridLayout" name="gridLayout_ignore_list">
           <item row="2" column="1">
            <widget class="QSpinBox" name="sb_ignoreListReset">
             <property name="suffix">
@@ -3654,7 +3654,7 @@ Right click for insert and delete options.</string>
          <property name="checkable">
           <bool>true</bool>
          </property>
-         <layout class="QHBoxLayout" name="horizontalLayout_25">
+         <layout class="QHBoxLayout" name="horizontalLayout_autoTXFreq">
           <item>
            <widget class="QRadioButton" name="rb_autoFreqWide">
             <property name="text">
@@ -3677,7 +3677,7 @@ Right click for insert and delete options.</string>
          <property name="currentIndex">
           <number>0</number>
          </property>
-         <widget class="QWidget" name="tab">
+         <widget class="QWidget" name="wsjtz_rx_windows_tab">
           <attribute name="title">
            <string>RX  Windows</string>
           </attribute>
@@ -3906,14 +3906,14 @@ Right click for insert and delete options.</string>
         </spacer>
        </item>
        <item row="0" column="0" colspan="3">
-        <widget class="QGroupBox" name="groupBox_8">
+        <widget class="QGroupBox" name="groupBox_qrzcom">
          <property name="title">
           <string>QRZ.COM</string>
          </property>
          <property name="flat">
           <bool>false</bool>
          </property>
-         <layout class="QHBoxLayout" name="horizontalLayout_23">
+         <layout class="QHBoxLayout" name="horizontalLayout_qrzcom">
           <item>
            <widget class="QLabel" name="label_18">
             <property name="text">
@@ -3994,7 +3994,7 @@ Right click for insert and delete options.</string>
          <property name="title">
           <string>Debug</string>
          </property>
-         <layout class="QHBoxLayout" name="horizontalLayout_24">
+         <layout class="QHBoxLayout" name="horizontalLayout_debug">
           <item>
            <widget class="QRadioButton" name="rb_dbg_Screen">
             <property name="text">
