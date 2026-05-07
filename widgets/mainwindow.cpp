@@ -3283,10 +3283,17 @@ void MainWindow::createStatusBar()                           //createStatusBar
   labAz.setFrameStyle (QFrame::Panel | QFrame::Sunken);
   statusBar()->addWidget (&labAz);
 
-  if (m_config.PWR_and_SWR()) statusBar ()->addPermanentWidget (&band_hopping_label);
   band_hopping_label.setAlignment (Qt::AlignHCenter);
   band_hopping_label.setMinimumSize (QSize {80, 18});
   band_hopping_label.setFrameStyle (QFrame::Panel | QFrame::Sunken);
+  statusBar ()->addPermanentWidget (&band_hopping_label);
+  band_hopping_label.setVisible (m_mode == "WSPR");
+
+  swr_label.setAlignment (Qt::AlignHCenter);
+  swr_label.setMinimumSize (QSize {80, 18});
+  swr_label.setFrameStyle (QFrame::Panel | QFrame::Sunken);
+  statusBar ()->addPermanentWidget (&swr_label);
+  swr_label.setVisible (m_config.PWR_and_SWR ());
 
   statusBar()->addPermanentWidget(&progressBar);
   progressBar.setMinimumSize (QSize {150, 18});
@@ -3335,16 +3342,22 @@ void MainWindow::setup_status_bar (bool vhf)
   }
   last_tx_label.setText (QString {});
   if (m_mode.contains (QRegularExpression {R"(^(Echo))"})) {
-    if (band_hopping_label.isVisible ()) statusBar ()->removeWidget (&band_hopping_label);
+    band_hopping_label.clear ();
+    band_hopping_label.setVisible (false);
   } else if (m_mode=="WSPR") {
     mode_label.setStyleSheet ("QLabel{color: #000000; background-color: #ff66ff}");
-    if (!band_hopping_label.isVisible ()) {
-      statusBar ()->addWidget (&band_hopping_label);
-      band_hopping_label.show ();
-      band_hopping_label.setMinimumSize (QSize  {80, 18});
-    }
+    band_hopping_label.setVisible (true);
   } else {
-    if (band_hopping_label.isVisible ()) statusBar ()->removeWidget (&band_hopping_label);
+    band_hopping_label.clear ();
+    band_hopping_label.setVisible (false);
+  }
+
+  if (!m_config.PWR_and_SWR ()) {
+    swr_label.clear ();
+    swr_label.setStyleSheet ("");
+    swr_label.setVisible (false);
+  } else {
+    swr_label.setVisible (true);
   }
 }
 
@@ -9916,11 +9929,7 @@ void MainWindow::handle_transceiver_update (Transceiver::TransceiverState const&
 
   // Display PWR and SWR
   if(m_config.PWR_and_SWR()) {
-    if (!band_hopping_label.isVisible ()) {
-      statusBar ()->addWidget (&band_hopping_label);
-      band_hopping_label.setMinimumSize (QSize  {80, 18});
-      band_hopping_label.show();
-    }
+    swr_label.setVisible (true);
     if (m_rigState.power() != s.power() && m_transmitting) {
       ui->label->setText(QString {tr("%1 W")}.arg (round(s.power()/1000.)));
       if (round(s.power()/1000.) >= 100) {
@@ -9951,11 +9960,11 @@ void MainWindow::handle_transceiver_update (Transceiver::TransceiverState const&
         }
 
         if (swr_ratio > 2.0) {
-          band_hopping_label.setStyleSheet ("QLabel{color: #ffffff; background-color: #ff0000}");
+          swr_label.setStyleSheet ("QLabel{color: #ffffff; background-color: #ff0000}");
         } else if (swr_ratio > 1.5) {
-          band_hopping_label.setStyleSheet ("QLabel{color: #000000; background-color: #ffff00}");
+          swr_label.setStyleSheet ("QLabel{color: #000000; background-color: #ffff00}");
         } else {
-          band_hopping_label.setStyleSheet("");
+          swr_label.setStyleSheet("");
         }
 
         if (swr_ratio > 2.5 && m_config.check_SWR()) {
@@ -9968,13 +9977,13 @@ void MainWindow::handle_transceiver_update (Transceiver::TransceiverState const&
             s_alreadyShowingSWRAlert = false;
           }
         }
-        band_hopping_label.setText(QString {"SWR: %1"}.arg (swr_ratio,0,'f',2));
+        swr_label.setText(QString {"SWR: %1"}.arg (swr_ratio,0,'f',2));
       } else {
         if (!s_alreadyShowingSWRAlert) {
           if (swr_active_tx) {
             // Rig is transmitting/tuning but no SWR reading is currently available.
-            band_hopping_label.setText("SWR: --");
-            band_hopping_label.setStyleSheet ("QLabel{color: #000000; background-color: #ff9900}");
+            swr_label.setText("SWR: --");
+            swr_label.setStyleSheet ("QLabel{color: #000000; background-color: #ff9900}");
             ++s_missingSWRReadings;
             if (s_missingSWRReadings >= 4 && !s_alreadyShowingNoSWRAlert) {
               s_alreadyShowingNoSWRAlert = true;
@@ -9987,12 +9996,16 @@ void MainWindow::handle_transceiver_update (Transceiver::TransceiverState const&
           } else {
             s_missingSWRReadings = 0;
             s_alreadyShowingNoSWRAlert = false;
-            band_hopping_label.setText("");
-            band_hopping_label.setStyleSheet("");
+            swr_label.setText("");
+            swr_label.setStyleSheet("");
           }
         }
       }
     }
+  } else {
+    swr_label.clear ();
+    swr_label.setStyleSheet ("");
+    swr_label.setVisible (false);
   }
 
   m_rigState = s;

@@ -795,6 +795,7 @@ private:
 
   QLabel auto_tx_label;
   QLabel band_hopping_label;
+  QLabel swr_label;
   QLabel ndecodes_label;
   QProgressBar progressBar;
   QLabel watchdog_label;
