@@ -7327,8 +7327,8 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
                 else {
                   cease_auto_Tx_after_QSO ();
                 }
-                m_ntx=6;
-                ui->txrb6->setChecked(true);
+                m_ntx=5;
+                ui->txrb5->setChecked(true);
               }
             else
               {
