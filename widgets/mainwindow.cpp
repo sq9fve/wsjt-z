@@ -14364,7 +14364,8 @@ void MainWindow::ZProcess ()
     if (m_QSOProgress == CALLING) {
         if (m_zdebug) log("ZProcess: m_QSOProgress = CALLING");
 
-        if (ui->cbAutoCall->isChecked() || ui->cbAutoCQ->isChecked()) {
+      // Only run auto mode countdown/switch logic while Auto is active.
+      if (ui->autoButton->isChecked() && (ui->cbAutoCall->isChecked() || ui->cbAutoCQ->isChecked())) {
 
                 if (ui->cbAutoCall->isChecked()) {
                     int l = ui->le_autoCallLeft->text().toInt();
