@@ -8239,6 +8239,14 @@ void MainWindow::on_dxCallEntry_textChanged (QString const& call)
   }*/
 
   set_dateTimeQSO (-1);  // reset the QSO start time when DXCall changes
+  auto const previous_base = Radio::base_callsign (m_hisCall);
+  auto const next_base = Radio::base_callsign (call);
+  if (watchdog () && !next_base.isEmpty () && previous_base != next_base)
+    {
+      // New DX target: start a fresh watchdog window instead of carrying
+      // any prior station's elapsed time into this QSO attempt.
+      tx_watchdog (false);
+    }
   m_hisCall = call;
   ui->dxGridEntry->clear();
   statusChanged();
