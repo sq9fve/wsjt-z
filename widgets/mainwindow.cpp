@@ -20,6 +20,7 @@
 #include <QFileDialog>
 #include <QTextBlock>
 #include <QProgressBar>
+#include <QCheckBox>
 #include <QLineEdit>
 #include <QRegExpValidator>
 #include <QRegExp>
@@ -507,6 +508,31 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
   m_zdebug = ui->actionWSJT_Z_Debug->isChecked();
   connect(ui->actionWSJT_Z_Debug, &QAction::toggled,
           this, [this](bool b){ m_zdebug = b; });
+  {
+    auto tt = ui->cbHoldTxFreq->toolTip ();
+    auto const hint = QString {"<p><b>Right-click</b> to toggle Smart Hold mode (green label).</p>"};
+    if (!tt.contains ("Right-click", Qt::CaseInsensitive)) {
+      if (!tt.contains ("</body>", Qt::CaseInsensitive)) {
+        tt += hint;
+      } else {
+        tt.replace ("</body>", hint + "</body>", Qt::CaseInsensitive);
+      }
+      ui->cbHoldTxFreq->setToolTip (tt);
+    }
+  }
+  ui->cbHoldTxFreq->setContextMenuPolicy (Qt::CustomContextMenu);
+  connect (ui->cbHoldTxFreq, &QWidget::customContextMenuRequested, this, [this] (QPoint const&) {
+    m_holdTxFreqSmartEnabled = !m_holdTxFreqSmartEnabled;
+    if (!m_holdTxFreqSmartEnabled) {
+      resetHoldTxFreqSmartState (true);
+    }
+    updateHoldTxFreqSmartUi ();
+  });
+  connect (ui->cbHoldTxFreq, &QCheckBox::toggled, this, [this] (bool checked) {
+    if (!checked) {
+      resetHoldTxFreqSmartState (true);
+    }
+  });
   ui->dxGridEntry->setValidator (new MaidenheadLocatorValidator {this});
   ui->dxCallEntry->setValidator (new CallsignValidator {this});
   ui->sbTR->values ({5, 10, 15, 30, 60, 120, 300, 900, 1800});
@@ -1504,6 +1530,7 @@ void MainWindow::writeSettings()
   m_settings->setValue("GUItab",ui->tabWidget->currentIndex());
   m_settings->setValue("OutBufSize",outBufSize);
   m_settings->setValue ("HoldTxFreq", ui->cbHoldTxFreq->isChecked ());
+  m_settings->setValue ("HoldTxFreqSmart", m_holdTxFreqSmartEnabled);
   m_settings->setValue("PctTx", ui->sbTxPercent->value ());
   m_settings->setValue("RoundRobin",ui->RoundRobin->currentText());
   m_settings->setValue("dBm",m_dBm);
@@ -1900,6 +1927,8 @@ void MainWindow::readSettings()
   }
   outBufSize=m_settings->value("OutBufSize",4096).toInt();
   ui->cbHoldTxFreq->setChecked (m_settings->value ("HoldTxFreq", false).toBool ());
+  m_holdTxFreqSmartEnabled = m_settings->value ("HoldTxFreqSmart", false).toBool ();
+  updateHoldTxFreqSmartUi ();
   m_pwrBandTxMemory=m_settings->value("pwrBandTxMemory").toHash();
   m_pwrBandTuneMemory=m_settings->value("pwrBandTuneMemory").toHash();
   ui->actionEnable_AP_FT8->setChecked (m_settings->value ("FT8AP", false).toBool());
@@ -6437,6 +6466,8 @@ void MainWindow::guiUpdate()
           }
       }
 
+    noteHoldTxFreqSmartTxCycle ();
+
     switch (m_ntx)
     {
       case 1: m_QSOProgress = REPLYING; break;
@@ -6648,6 +6679,82 @@ void MainWindow::useNextCall()
     ui->txrb3->setChecked(true);
   }
   genStdMsgs(m_nextRpt);
+}
+
+void MainWindow::updateHoldTxFreqSmartUi()
+{
+  if (m_holdTxFreqSmartEnabled) {
+    ui->cbHoldTxFreq->setStyleSheet ("QCheckBox { color: #008a00; font-weight: 600; }");
+  } else {
+    ui->cbHoldTxFreq->setStyleSheet (QString {});
+  }
+}
+
+void MainWindow::resetHoldTxFreqSmartState(bool restore_original)
+{
+  if (restore_original && m_holdTxFreqSmartMoved && m_holdTxFreqOriginal > 0) {
+    ui->TxFreqSpinBox->setValue (m_holdTxFreqOriginal);
+  }
+  m_holdTxFreqSmartArmed = false;
+  m_holdTxFreqSmartMoved = false;
+  m_holdTxFreqOriginal = 0;
+  m_holdTxFreqTarget = 0;
+  m_holdTxFreqMissedCycles = 0;
+  m_holdTxFreqTargetCall.clear ();
+}
+
+void MainWindow::armHoldTxFreqSmart(int target_frequency, QString const& target_call)
+{
+  if (!m_holdTxFreqSmartEnabled || !ui->cbHoldTxFreq->isChecked ()) return;
+  if (target_frequency <= 0) return;
+
+  auto const base_target_call = Radio::base_callsign (target_call);
+  if ((m_holdTxFreqSmartArmed || m_holdTxFreqSmartMoved)
+      && m_holdTxFreqTarget == target_frequency
+      && m_holdTxFreqTargetCall == base_target_call) {
+    return;
+  }
+
+  auto const current_tx = ui->TxFreqSpinBox->value ();
+  if (target_frequency == current_tx) {
+    resetHoldTxFreqSmartState (false);
+    return;
+  }
+
+  m_holdTxFreqSmartArmed = true;
+  m_holdTxFreqSmartMoved = false;
+  m_holdTxFreqOriginal = current_tx;
+  m_holdTxFreqTarget = target_frequency;
+  m_holdTxFreqMissedCycles = 0;
+  m_holdTxFreqTargetCall = base_target_call;
+}
+
+void MainWindow::noteHoldTxFreqSmartTxCycle()
+{
+  if (!m_holdTxFreqSmartEnabled || !m_holdTxFreqSmartArmed || m_holdTxFreqSmartMoved) return;
+  if (!ui->cbHoldTxFreq->isChecked ()) return;
+  if (m_ntx < 1 || m_ntx > 3) return;
+  if (m_holdTxFreqTarget <= 0 || m_holdTxFreqOriginal <= 0) return;
+
+  auto const target_call = Radio::base_callsign (ui->dxCallEntry->text ());
+  if (!m_holdTxFreqTargetCall.isEmpty () && target_call != m_holdTxFreqTargetCall) {
+    // Ignore this cycle if focus temporarily moved off the selected target.
+    return;
+  }
+
+  int trigger_cycles = 2;
+  auto const wd_minutes = watchdog();
+  if (wd_minutes > 0 && m_TRperiod > 0.0) {
+    auto const total_cycles_in_wd = (wd_minutes * 60.0) / m_TRperiod;
+    trigger_cycles = std::max (1, static_cast<int> (std::ceil (total_cycles_in_wd / 2.0)));
+  }
+
+  ++m_holdTxFreqMissedCycles;
+  if (m_holdTxFreqMissedCycles >= trigger_cycles) {
+    ui->TxFreqSpinBox->setValue (m_holdTxFreqTarget);
+    m_holdTxFreqSmartMoved = true;
+    m_holdTxFreqSmartArmed = false;
+  }
 }
 
 void MainWindow::startTx2()
@@ -7009,6 +7116,14 @@ void MainWindow::doubleClickOnCall(Qt::KeyboardModifiers modifiers)
   }
   m_bDoubleClicked = true;
   m_hisCall0 = m_hisCall;
+  {
+    QString selected_call;
+    QString selected_grid;
+    message.deCallAndGrid(/*out*/selected_call, selected_grid);
+    if (!selected_call.isEmpty()) {
+      armHoldTxFreqSmart (message.frequencyOffset (), selected_call);
+    }
+  }
   processMessage (message, modifiers);
 }
 
@@ -7892,6 +8007,7 @@ void MainWindow::TxAgain()
 void MainWindow::clearDX ()
 {
   if (m_zdebug) log("clearDX");
+  resetHoldTxFreqSmartState (true);
   set_dateTimeQSO (-1);
   // Z
   //if (m_QSOProgress != CALLING) {
@@ -9918,6 +10034,7 @@ void MainWindow::on_stopTxButton_clicked()                    //Stop Tx
 {
   // Z
   if (m_zdebug) log("stopTXButton");
+  resetHoldTxFreqSmartState (true);
   if (m_config.rxTotxFreq()) on_pbT2R_clicked();
   if (m_tune) stop_tuning ();
   if (m_auto and !m_tuneup) auto_tx_mode (false);
@@ -11509,6 +11626,7 @@ void MainWindow::tx_watchdog (bool triggered)
   m_tx_watchdog = triggered;
   if (triggered)
     {
+      resetHoldTxFreqSmartState (true);
       if (m_zdebug) log("TXWatchdog: TRUE");
       m_bTxTime=false;
       // Z
@@ -13610,6 +13728,7 @@ void MainWindow::on_actionCall_next_triggered() {
 
     int frequency = message.frequencyOffset();
     ui->RxFreqSpinBox->setValue(frequency);
+    armHoldTxFreqSmart(frequency, dxCall);
 
     on_dxGridEntry_textChanged(dxGrid);
 
@@ -14351,6 +14470,7 @@ void MainWindow::ZProcess ()
         ui->rptSpinBox->setValue(m_nextRpt.toInt());
         ui->txFirstCheckBox->setChecked(m_prioTxFirst);
         ui->RxFreqSpinBox->setValue(m_prioFreq);
+        armHoldTxFreqSmart(m_prioFreq, m_nextCall);
         if (!ui->cbHoldTxFreq->isChecked()) ui->TxFreqSpinBox->setValue(m_prioFreq);
         useNextCall();
         on_txb1_clicked();

@@ -960,6 +960,13 @@ private:
   bool m_transmitting;
   bool m_tune;
   bool m_tx_watchdog;           // true when watchdog triggered
+  bool m_holdTxFreqSmartEnabled {false};
+  bool m_holdTxFreqSmartArmed {false};
+  bool m_holdTxFreqSmartMoved {false};
+  int m_holdTxFreqOriginal {0};
+  int m_holdTxFreqTarget {0};
+  int m_holdTxFreqMissedCycles {0};
+  QString m_holdTxFreqTargetCall;
   bool m_block_pwr_tooltip;
   bool m_PwrBandSetOK;
   bool m_bDisplayedOnce;
@@ -991,6 +998,10 @@ private:
   void set_application_font (QFont const&);
   void setDecodedTextFont (QFont const&);
   void writeSettings();
+  void updateHoldTxFreqSmartUi();
+  void resetHoldTxFreqSmartState(bool restore_original);
+  void armHoldTxFreqSmart(int target_frequency, QString const& target_call);
+  void noteHoldTxFreqSmartTxCycle();
   void createStatusBar();
   void update_mode_switch_status_label();
   void updateStatusBar();
