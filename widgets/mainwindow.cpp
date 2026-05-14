@@ -1825,6 +1825,7 @@ void MainWindow::readSettings()
   m_infoMessageShown = m_settings->value("infoMessageShown12-2024", false).toBool();
   ui->cb_ignoreCQTarget->setCurrentIndex(m_settings->value("ignoreCQTargetIndex", 0).toInt());
   ui->tx1->setEnabled(m_settings->value("tx1State", true).toBool());
+  ui->tx1->setEnabled(!elide_tx1_not_allowed () && ui->tx1->isEnabled());
   m_unfilteredViewGeometry = m_settings->value("rawViewGeometry").toByteArray();
   m_pskReporterViewGeometry = m_settings->value("pskViewGeometry").toByteArray();
   auto showRawView =m_settings->value("rawViewDisplayed", false).toBool();
@@ -2516,7 +2517,7 @@ void MainWindow::on_actionSettings_triggered()               //Setup Dialog
     checkMSK144ContestType();
     if (m_config.my_callsign () != callsign) {
       m_baseCall = Radio::base_callsign (m_config.my_callsign ());
-      ui->tx1->setEnabled (elide_tx1_not_allowed () || ui->tx1->isEnabled ());
+      ui->tx1->setEnabled (!elide_tx1_not_allowed () && ui->tx1->isEnabled ());
       morse_(const_cast<char *> (m_config.my_callsign ().toLatin1().constData()),
              const_cast<int *> (icw), &m_ncw, (FCL)m_config.my_callsign().length());
     }
@@ -4323,8 +4324,9 @@ void MainWindow::decode()                                       //decode()
   dec_data.params.ltxing = false;
   dec_data.params.lhound = false;
   dec_data.params.lcommonft8b = true;         // common ft8b path
-  dec_data.params.lmycallstd = true;          // assume standard mycall
-  dec_data.params.lhiscallstd = true;
+  dec_data.params.lmycallstd = stdCall (m_config.my_callsign ());
+  auto const his_callsign = ui->dxCallEntry->text ().trimmed ();
+  dec_data.params.lhiscallstd = his_callsign.isEmpty () || stdCall (his_callsign);
   dec_data.params.lapmyc = false;
   dec_data.params.lmodechanged = false;
   dec_data.params.lbandchanged = false;
@@ -6802,7 +6804,7 @@ bool MainWindow::elide_tx1_not_allowed () const
 
 void MainWindow::on_txrb1_doubleClicked ()
 {
-  ui->tx1->setEnabled (elide_tx1_not_allowed () || !ui->tx1->isEnabled ());
+  ui->tx1->setEnabled (!elide_tx1_not_allowed () && !ui->tx1->isEnabled ());
   if (!ui->tx1->isEnabled ()) {
     // leave time for clicks to complete before setting txrb2
     QTimer::singleShot (500, ui->txrb2, SLOT (click ()));
@@ -6887,7 +6889,7 @@ void MainWindow::on_txb1_clicked()
 
 void MainWindow::on_txb1_doubleClicked()
 {
-  ui->tx1->setEnabled (elide_tx1_not_allowed () || !ui->tx1->isEnabled ());
+  ui->tx1->setEnabled (!elide_tx1_not_allowed () && !ui->tx1->isEnabled ());
 }
 
 void MainWindow::on_txb2_clicked()
@@ -7216,7 +7218,25 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
     }
 
     bool bContestOK=(m_mode=="FT4" or m_mode=="FT8" or m_mode=="FT2" or m_mode=="Q65" or m_mode=="MSK144");
-    if(message_words.size () > 4   // enough fields for a normal message
+    bool const both_nonstandard_77bit =
+      is77BitMode () && !stdCall (m_config.my_callsign ()) && !stdCall (hiscall);
+
+    // In 77-bit type-4 exchanges with two nonstandard calls, report-bearing
+    // messages are not representable. If both sides keep exchanging plain
+    // directed calls, promote from Tx2 to Tx4 once we're already in report
+    // state so the QSO can progress instead of repeating Tx2 indefinitely.
+    if (both_nonstandard_77bit && nw == 2
+        && (message_words.at(2).contains(m_baseCall) || "DE" == message_words.at(2))) {
+      tx_watchdog (false);
+      if (m_QSOProgress >= REPORT) {
+        setTxMsg (4);
+        m_QSOProgress = ROGERS;
+      } else {
+        setTxMsg (2);
+        m_QSOProgress = REPORT;
+      }
+    }
+    else if(message_words.size () > 4   // enough fields for a normal message
        && (message_words.at(2).contains(m_baseCall) || "DE" == message_words.at(2))
        && (message_words.at(3).contains(qso_partner_base_call) or m_bDoubleClicked
            or bEU_VHF_w2 or (m_QSOProgress==CALLING))) {
@@ -7701,6 +7721,7 @@ void MainWindow::genStdMsgs(QString rpt, bool unconditional)
       QString t2,t3;
       QString sent=rpt;
       QString rs,rst;
+      bool const both_nonstandard_77bit = !bMyCall && !bHisCall;
       int nn=(n+36)/6;
       if(nn<2) nn=2;
       if(nn>9) nn=9;
@@ -7714,6 +7735,11 @@ void MainWindow::genStdMsgs(QString rpt, bool unconditional)
       if(!bHisCall) {
         t=t0a;
         msgtype(t0a + my_grid, ui->tx1);
+        if (is77BitMode () && SpecOp::NONE==m_specOp
+            && ((Radio::is_77bit_nonstandard_callsign (my_callsign) && !is_compound)
+                || (is_compound && Radio::is_77bit_nonstandard_callsign (hisCall)))) {
+          msgtype(t0a, ui->tx1);
+        }
       }
       if(SpecOp::NA_VHF==m_specOp) sent=my_grid;
       if(SpecOp::WW_DIGI==m_specOp) sent=my_grid;
@@ -7737,9 +7763,41 @@ void MainWindow::genStdMsgs(QString rpt, bool unconditional)
         a = a.asprintf("%4.4d ",ui->sbSerialNumber->value());
         sent=rs + a + m_config.my_grid();
       }
-      msgtype(t + sent, ui->tx2);
-      if(sent==rpt) msgtype(t + "R" + sent, ui->tx3);
-      if(sent!=rpt) msgtype(t + "R " + sent, ui->tx3);
+      if (is77BitMode () && SpecOp::NONE==m_specOp
+          && Radio::is_77bit_nonstandard_callsign (my_callsign)
+          && Radio::is_77bit_nonstandard_callsign (hisCall)
+          && !(!Radio::is_77bit_nonstandard_callsign (m_baseCall)
+               && hisCall.contains("/P")
+               && !Radio::is_77bit_nonstandard_callsign (hisBase)
+               && my_callsign.contains("/P"))) {
+        if (!is_compound && hisCall==hisBase && Radio::is_77bit_nonstandard_callsign (hisCall)) {
+          t="<" + hisBase + "> <" + m_baseCall + "> ";
+        }
+        if (!is_compound && hisCall!=hisBase) {
+          t=hisBase + " <" + my_callsign + "> ";
+        }
+        if ((is_compound || my_callsign.contains("/P") || hisCall!=hisBase)
+            && Radio::is_77bit_nonstandard_callsign (hisBase)) {
+          t="<" + hisCall + "> <" + my_callsign + "> ";
+        }
+        if (is_compound && hisCall.contains("/")
+            && !Radio::is_77bit_nonstandard_callsign (hisBase)
+            && hisCall!=hisBase) {
+          t=hisBase + " <" + my_callsign + "> ";
+        }
+        if (is_compound && !hisCall.contains("/P")
+            && (Radio::is_77bit_nonstandard_callsign (hisBase) || hisCall!=hisBase)) {
+          t="<" + hisCall + "> " + m_baseCall + " ";
+        }
+      }
+      if (both_nonstandard_77bit) {
+        msgtype(t, ui->tx2);
+        msgtype(t + " RRR", ui->tx3);
+      } else {
+        msgtype(t + sent, ui->tx2);
+        if(sent==rpt) msgtype(t + "R" + sent, ui->tx3);
+        if(sent!=rpt) msgtype(t + "R " + sent, ui->tx3);
+      }
       if((m_mode=="FT4" or m_mode=="FT2") and SpecOp::RTTY==m_specOp) {
         QDateTime now=QDateTime::currentDateTimeUtc();
         int sinceTx3 = m_dateTimeSentTx3.secsTo(now);
@@ -7787,12 +7845,44 @@ void MainWindow::genStdMsgs(QString rpt, bool unconditional)
       if(bHisCall and !bMyCall) t="<" + hisCall + "> " + my_callsign + " " + (m_send_RR73 ? "RR73" : "RRR");
     }
     if ((m_mode=="JT4" || m_mode=="Q65") && m_bShMsgs) t="@1500  (RRR)";
+    if (is77BitMode () && SpecOp::NONE==m_specOp
+        && Radio::is_77bit_nonstandard_callsign (my_callsign)
+        && !(!Radio::is_77bit_nonstandard_callsign (hisBase) && hisCall.contains("/P"))) {
+      if (!is_compound && hisCall==hisBase && Radio::is_77bit_nonstandard_callsign (hisCall)) {
+        t=hisBase + " <" + m_baseCall + "> " + (m_send_RR73 ? "RR73" : "RRR");
+      }
+      if (!is_compound && hisCall!=hisBase) {
+        t=hisCall + " <" + my_callsign + "> " + (m_send_RR73 ? "RR73" : "RRR");
+      }
+      if (is_compound && hisCall!=hisBase) {
+        t=hisCall + " <" + my_callsign + "> " + (m_send_RR73 ? "RR73" : "RRR");
+      }
+      if (is_compound && hisCall==hisBase && Radio::is_77bit_nonstandard_callsign (hisCall)) {
+        t=hisBase + " <" + my_callsign + "> " + (m_send_RR73 ? "RR73" : "RRR");
+      }
+    }
     msgtype(t, ui->tx4);
 
     t=t0 + "73";
     if((m_mode=="MSK144" and !m_bShMsgs) or m_mode=="FT8" or m_mode=="FT4" or m_mode=="FT2" || m_mode == "FST4" || m_mode == "Q65") {
       if(!bHisCall and bMyCall) t=hisCall + " <" + my_callsign + "> 73";
       if(bHisCall and !bMyCall) t="<" + hisCall + "> " + my_callsign + " 73";
+    }
+    if (is77BitMode () && SpecOp::NONE==m_specOp
+        && Radio::is_77bit_nonstandard_callsign (my_callsign)
+        && !(!Radio::is_77bit_nonstandard_callsign (hisBase) && hisCall.contains("/P"))) {
+      if (!is_compound && hisCall==hisBase && Radio::is_77bit_nonstandard_callsign (hisCall)) {
+        t=hisBase + " <" + m_baseCall + "> 73";
+      }
+      if (!is_compound && hisCall!=hisBase) {
+        t=hisCall + " <" + my_callsign + "> 73";
+      }
+      if (is_compound && hisCall!=hisBase) {
+        t=hisCall + " <" + my_callsign + "> 73";
+      }
+      if (is_compound && hisCall==hisBase && Radio::is_77bit_nonstandard_callsign (hisCall)) {
+        t=hisBase + " <" + my_callsign + "> 73";
+      }
     }
     if (m_mode=="JT4" || m_mode=="Q65") {
       if (m_bShMsgs) t="@1750  (73)";
