@@ -370,6 +370,8 @@ private slots:
     bool isSlotFree(int f);
     void addSlot(int freq);
     void on_pb_FreeFreq_clicked();
+    void set_auto_free_freq_tx6_cq (bool enabled);
+    void update_auto_free_freq_button_state ();
      void on_cbAutoCall_toggled(bool b);
      void on_cbAutoCQ_toggled(bool b);
      bool callsignFiltered(DecodedText dt);
@@ -724,6 +726,8 @@ private:
   SpecOp  m_specOp;
   // Z
   bool    m_autoTXFreq=false;
+  bool    m_auto_free_freq_tx6_cq = false;
+  bool    m_auto_free_freq_tx6_cycle_used = false;
   bool    m_beeped=false;
   QString m_lastCall;
   int	  m_lastX = -1;

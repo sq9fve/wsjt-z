@@ -14,6 +14,7 @@
 #include <QStringListModel>
 #include <QSettings>
 #include <QKeyEvent>
+#include <QMouseEvent>
 #include <QWheelEvent>
 #include <QProcessEnvironment>
 #include <QSharedMemory>
@@ -494,6 +495,7 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
   ui->setupUi(this);
   setUnifiedTitleAndToolBarOnMac (true);
   createStatusBar();
+  update_auto_free_freq_button_state ();
   add_child_to_event_filter (this);
   // Invalidate cached parsed-filter lists when the user edits any filter pane.
   // callsignFiltered() reuses the cache instead of re-parsing per decode.
@@ -3232,6 +3234,14 @@ bool MainWindow::eventFilter (QObject * object, QEvent * event)
       // Z
       if (m_config.wdResetAnywhere())
       tx_watchdog (false);
+
+      if (object == ui->pb_FreeFreq) {
+        auto const * mouse_event = static_cast<QMouseEvent *> (event);
+        if (mouse_event->button () == Qt::RightButton) {
+          set_auto_free_freq_tx6_cq (!m_auto_free_freq_tx6_cq);
+          return true;
+        }
+      }
       break;
 
     case QEvent::ChildAdded:
@@ -6035,6 +6045,16 @@ void MainWindow::guiUpdate()
     if(msgLength==0 and !m_tune) on_stopTxButton_clicked();
 
     if(g_iptt==0 and ((m_bTxTime and (fTR < 0.75) and (msgLength>0)) or m_tune)) {
+      if (!m_tune
+          && m_auto_free_freq_tx6_cq
+          && ui->cbAutoCQ->isChecked ()
+          && !m_auto_free_freq_tx6_cycle_used
+          && m_ntx == 6
+          && (txMsg.startsWith ("CQ ") || txMsg.startsWith ("QRZ "))) {
+        on_pb_FreeFreq_clicked ();
+        m_auto_free_freq_tx6_cycle_used = true;
+      }
+
       //### Allow late starts
       icw[0]=m_ncw;
       g_iptt = 1;
@@ -11533,6 +11553,7 @@ void MainWindow::tx_watchdog (bool triggered)
   else
     {
       if (m_zdebug) log("TXWatchdog: FALSE");
+      if (prior) m_auto_free_freq_tx6_cycle_used = false;
       m_idleMinutes = 0;
       update_watchdog_label ();
     }
@@ -13045,6 +13066,7 @@ void MainWindow::on_cbAutoCall_toggled(bool b)
 void MainWindow::on_cbAutoCQ_toggled(bool b)
 {
     if (b) {
+    m_auto_free_freq_tx6_cycle_used = false;
         ui->cbAutoCall->setChecked(false);
         ui->cbAutoCall->setEnabled(false);
         ui->cbFirst->setChecked(true);
@@ -14710,6 +14732,28 @@ bool MainWindow::isSlotFree(int f) {
 void MainWindow::on_pb_FreeFreq_clicked() {
     setFreeFreq();
     addSlot(ui->TxFreqSpinBox->value());
+}
+
+void MainWindow::set_auto_free_freq_tx6_cq (bool enabled)
+{
+  m_auto_free_freq_tx6_cq = enabled;
+  if (enabled) m_auto_free_freq_tx6_cycle_used = false;
+  update_auto_free_freq_button_state ();
+}
+
+void MainWindow::update_auto_free_freq_button_state ()
+{
+  if (m_auto_free_freq_tx6_cq) {
+    ui->pb_FreeFreq->setStyleSheet (
+      "QPushButton{background-color:#3ac65c;color:#000000;font-weight:600;}");
+  } else {
+    ui->pb_FreeFreq->setStyleSheet ("");
+  }
+
+  ui->pb_FreeFreq->setToolTip (
+    tr ("Left-click: find a free Tx frequency now.<br/>"
+      "Right-click: toggle Auto TX6 CQ free-frequency check (%1).")
+      .arg (m_auto_free_freq_tx6_cq ? tr ("ON") : tr ("OFF")));
 }
 
 void MainWindow::execCmd(QString cmd) {
