@@ -5671,7 +5671,10 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
   if (m_zdebug) log("auto_sequence: " + message.string());
   auto const& message_words = message.messageWords ();
   auto is_73 = message_words.filter (QRegularExpression {"^(73|RR73)$"}).size();
-  auto const selected_dx_base = Radio::base_callsign (ui->dxCallEntry->text ());
+  QString selected_dx_text = ui->dxCallEntry->text ().trimmed ();
+  if (selected_dx_text.isEmpty ()) selected_dx_text = m_hisCall.trimmed ();
+  if (selected_dx_text.isEmpty ()) selected_dx_text = m_nextCall.trimmed ();
+  auto const selected_dx_base = Radio::base_callsign (selected_dx_text);
   bool const have_selected_dx = !selected_dx_base.isEmpty ();
   auto msg_no_hash = message.clean_string();
   msg_no_hash = msg_no_hash.mid(22).remove("<").remove(">");
@@ -5727,21 +5730,27 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
     auto const target_base = normalized_base (message_words.at (3));
     auto const my_full_base = Radio::base_callsign (m_config.my_callsign ());
     bool const selected_dx_is_sender = have_selected_dx && sender_base == selected_dx_base;
+    bool const selected_dx_is_target = have_selected_dx && target_base == selected_dx_base;
+    bool const sender_is_me = sender_base == m_baseCall || sender_base == my_full_base;
     bool const target_is_me = target_base == m_baseCall || target_base == my_full_base;
+    bool const directed_with_selected_dx = selected_dx_is_sender || selected_dx_is_target;
+    bool const directed_to_me = sender_is_me || target_is_me;
 
     // Z TODO: This is inccorect - fix !m_config.superFox() && (SpecOp::HOUND != m_specOp)
     bool const auto_qrm_guard_state = m_QSOProgress == CALLING
                       || m_QSOProgress == REPLYING
                       || (!ui->tx1->isEnabled () && m_QSOProgress == REPORT);
+    bool const qrm_stop_window_match = m_QSOProgress == CALLING
+      || qAbs (ui->TxFreqSpinBox->value () - df) <= int (stop_tolerance);
     if (m_auto
         && auto_qrm_guard_state
-        && (SpecOp::HOUND != m_specOp) && qAbs (ui->TxFreqSpinBox->value () - df) <= int (stop_tolerance) //
+        && (SpecOp::HOUND != m_specOp) && qrm_stop_window_match //
         && message_words.at (2) != "DE"
         && !message_words.at (2).contains (QRegularExpression {"(^(CQ|QRZ))|" + m_baseCall})
         && have_selected_dx
-        // Selected DX station is transmitting to another caller, not to us.
-      && selected_dx_is_sender
-      && !target_is_me) {
+        // Selected DX station is in a directed exchange with someone else, not us.
+      && directed_with_selected_dx
+      && !directed_to_me) {
       // auto stop to avoid accidental QRM
         // Z
         if (m_zdebug) log("Automatic TX halt");
@@ -5750,6 +5759,7 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
       if (ui->cbAutoCQ->isChecked() || ui->cbAutoCall->isChecked()) clearDX();
     } else if (m_auto             // transmit allowed
                && ui->cbAutoSeq->isChecked () // auto-sequencing allowed
+          && !(have_selected_dx && directed_with_selected_dx && !directed_to_me)
                && ((!m_bCallingCQ      // not calling CQ/QRZ
                     && !m_sentFirst73       // not finished QSO
                     && ((message_words.at (2).contains (m_baseCall)
@@ -5779,6 +5789,7 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
     } else if (ui->cbAutoSeq->isChecked()
                && message_words.at (2).contains (m_baseCall)
                && (ui->cbAutoCQ->isChecked() || ui->cbAutoCall->isChecked())
+               && !(have_selected_dx && directed_with_selected_dx && !directed_to_me)
                && m_QSOProgress == CALLING
                && !(message_words.filter (QRegularExpression {"^(73|RR73|RRR)$"}).size())
                && (m_config.processTailenders() || m_lastCall == hiscall)
