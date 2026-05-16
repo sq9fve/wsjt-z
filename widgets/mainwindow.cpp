@@ -11550,11 +11550,11 @@ void MainWindow::tx_watchdog (bool triggered)
           bool const same_target = !candidate_base.isEmpty ()
                                    && !his_base.isEmpty ()
                                    && candidate_base == his_base;
+          bool const target_uncertain = his_base.isEmpty () || candidate_base.isEmpty ();
           bool const already_ignored = m_ignoredStationsCache.contains (ignore_candidate)
                                        || m_ignoredStationsCache.contains (candidate_base);
 
-          if (m_QSOProgress == CALLING
-              && same_target
+          if ((same_target || target_uncertain)
               && !ignore_candidate.isEmpty ()
               && !already_ignored)
             {
@@ -11565,7 +11565,7 @@ void MainWindow::tx_watchdog (bool triggered)
             {
               log("TXWatchdog: Skip ignore-list add (candidate='" + ignore_candidate
                   + "', same_target=" + QString::number (same_target)
-                  + ", calling_state=" + QString::number (m_QSOProgress == CALLING)
+                  + ", target_uncertain=" + QString::number (target_uncertain)
                   + ", already_ignored=" + QString::number (already_ignored) + ")");
             }
         }
@@ -13116,7 +13116,17 @@ void MainWindow::on_cbAutoCQ_toggled(bool b)
 }
 
 void MainWindow::on_btn_addToIgnore_clicked( ) {
-    ui->pte_IgnoredStations->appendPlainText(m_hisCall);
+    auto const candidate = ui->dxCallEntry->text().trimmed().isEmpty ()
+                           ? m_hisCall.trimmed ()
+                           : ui->dxCallEntry->text().trimmed ();
+    if (candidate.isEmpty ()) return;
+
+    if (!m_filterCacheValid) rebuildFilterCache();
+    if (!m_ignoredStationsCache.contains (candidate)
+        && !m_ignoredStationsCache.contains (Radio::base_callsign (candidate)))
+      {
+        ui->pte_IgnoredStations->appendPlainText(candidate);
+      }
 }
 
 void MainWindow::on_btn_clearIgnore_clicked( ) {
@@ -13611,7 +13621,16 @@ void MainWindow::on_actionIgnore_station_triggered() {
     DecodedText message {cursor.selectedText().trimmed().remove("TU; ")};
     message.deCallAndGrid (/*out*/ dxCall, dxGrid);
 
-    ui->pte_IgnoredStations->appendPlainText(dxCall);
+    dxCall = dxCall.trimmed();
+    if (!dxCall.isEmpty ())
+      {
+        if (!m_filterCacheValid) rebuildFilterCache();
+        if (!m_ignoredStationsCache.contains (dxCall)
+            && !m_ignoredStationsCache.contains (Radio::base_callsign (dxCall)))
+          {
+            ui->pte_IgnoredStations->appendPlainText(dxCall);
+          }
+      }
     cursor.movePosition(QTextCursor::End); // move/modify/etc.
 
     if (ui->decodedTextBrowser->hasFocus()) {
