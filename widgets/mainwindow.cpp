@@ -5731,8 +5731,8 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
 
     // Z TODO: This is inccorect - fix !m_config.superFox() && (SpecOp::HOUND != m_specOp)
     bool const auto_qrm_guard_state = m_QSOProgress == CALLING
-        || m_QSOProgress == REPLYING
-        || (!ui->tx1->isEnabled () && m_QSOProgress == REPORT);
+                      || m_QSOProgress == REPLYING
+                      || (!ui->tx1->isEnabled () && m_QSOProgress == REPORT);
     if (m_auto
         && auto_qrm_guard_state
         && (SpecOp::HOUND != m_specOp) && qAbs (ui->TxFreqSpinBox->value () - df) <= int (stop_tolerance) //
