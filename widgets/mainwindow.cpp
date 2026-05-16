@@ -1376,13 +1376,17 @@ void MainWindow::on_the_minute ()
         }
     }
   // Z
-  if (watchdog () && m_mode!="WSPR" && m_mode!="FST4W"
-      && !((ui->cbAutoCQ->isChecked() || ui->cbAutoCall->isChecked())
-           && m_QSOProgress == CALLING)) {
-    if (m_idleMinutes < watchdog ()) ++m_idleMinutes;
+  if (watchdog () && m_mode!="WSPR" && m_mode!="FST4W") {
+    // Keep AutoCQ's existing CALLING pause behavior, but let AutoCall obey WD
+    // so it can time out as expected when no QSO starts.
+    bool const pause_for_autocq = ui->cbAutoCQ->isChecked ()
+                                  && m_QSOProgress == CALLING;
+    if (!pause_for_autocq && m_idleMinutes < watchdog ()) ++m_idleMinutes;
     update_watchdog_label ();
   } else {
-    tx_watchdog (false);
+    // Do not silently reset idle minutes every minute when WD is disabled.
+    if (m_tx_watchdog) tx_watchdog (false);
+    else update_watchdog_label ();
   }
   update_foxLogWindow_rate(); // update the rate on the window
   if ((!verified && ui->labDXped->isVisible()) or !ui->labDXped->text().contains("Hound"))
@@ -5725,7 +5729,7 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
     bool const selected_dx_is_sender = have_selected_dx && sender_base == selected_dx_base;
     bool const target_is_me = target_base == m_baseCall || target_base == my_full_base;
 
-	// Z TODO: This is inccorect - fix !m_config.superFox() && (SpecOp::HOUND != m_specOp)
+    // Z TODO: This is inccorect - fix !m_config.superFox() && (SpecOp::HOUND != m_specOp)
     bool const auto_qrm_guard_state = m_QSOProgress == CALLING
                                       || m_QSOProgress == REPLYING
                                       || (!ui->tx1->isEnabled () && m_QSOProgress == REPORT);
@@ -6973,9 +6977,6 @@ void MainWindow::doubleClickOnCall2(Qt::KeyboardModifiers modifiers)
 
 void MainWindow::doubleClickOnCall(Qt::KeyboardModifiers modifiers)
 {
-  // Z
-  tx_watchdog(false);
-
   QTextCursor cursor;
   if(m_mode=="FST4W") {
     MessageBox::information_message (this,
@@ -7023,6 +7024,9 @@ void MainWindow::doubleClickOnCall(Qt::KeyboardModifiers modifiers)
     }
     return;
   }
+
+  // Valid call selection starts a fresh WD window.
+  tx_watchdog(false);
   m_bDoubleClicked = true;
   m_hisCall0 = m_hisCall;
   processMessage (message, modifiers);
@@ -11537,7 +11541,34 @@ void MainWindow::tx_watchdog (bool triggered)
       m_bTxTime=false;
       // Z
       if (ui->cbAutoCall->isChecked() && ui->cb_IgnoreAfterWD->isChecked())
-          ui->pte_IgnoredStations->appendPlainText(m_hisCall);
+        {
+          auto const active_call = ui->dxCallEntry->text().trimmed();
+          auto const his_call = m_hisCall.trimmed();
+          auto const ignore_candidate = active_call.isEmpty () ? his_call : active_call;
+          auto const candidate_base = Radio::base_callsign (ignore_candidate);
+          auto const his_base = Radio::base_callsign (his_call);
+          bool const same_target = !candidate_base.isEmpty ()
+                                   && !his_base.isEmpty ()
+                                   && candidate_base == his_base;
+          bool const already_ignored = m_ignoredStationsCache.contains (ignore_candidate)
+                                       || m_ignoredStationsCache.contains (candidate_base);
+
+          if (m_QSOProgress == CALLING
+              && same_target
+              && !ignore_candidate.isEmpty ()
+              && !already_ignored)
+            {
+              ui->pte_IgnoredStations->appendPlainText(ignore_candidate);
+              if (m_zdebug) log("TXWatchdog: Added to ignore list after WD timeout: " + ignore_candidate);
+            }
+          else if (m_zdebug)
+            {
+              log("TXWatchdog: Skip ignore-list add (candidate='" + ignore_candidate
+                  + "', same_target=" + QString::number (same_target)
+                  + ", calling_state=" + QString::number (m_QSOProgress == CALLING)
+                  + ", already_ignored=" + QString::number (already_ignored) + ")");
+            }
+        }
 
       if (ui->cbAutoCQ->isChecked()) {
                   ui->txrb6->setChecked (true);
