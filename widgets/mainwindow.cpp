@@ -5667,6 +5667,8 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
   if (m_zdebug) log("auto_sequence: " + message.string());
   auto const& message_words = message.messageWords ();
   auto is_73 = message_words.filter (QRegularExpression {"^(73|RR73)$"}).size();
+  auto const selected_dx_base = Radio::base_callsign (ui->dxCallEntry->text ());
+  bool const have_selected_dx = !selected_dx_base.isEmpty ();
   auto msg_no_hash = message.clean_string();
   msg_no_hash = msg_no_hash.mid(22).remove("<").remove(">");
 
@@ -5711,17 +5713,31 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
     message.deCallAndGrid(/*out*/hiscall,hisgrid);
     bool addressed_to_me = message_words.at (2).contains (m_baseCall);
     bool tailender_ok = (m_config.processTailenders() || m_lastCall == hiscall || !m_bAutoReply);
+    auto normalized_base = [](QString token)
+      {
+        token.remove ('<');
+        token.remove ('>');
+        return Radio::base_callsign (token);
+      };
+    auto const sender_base = normalized_base (message_words.at (2));
+    auto const target_base = normalized_base (message_words.at (3));
+    auto const my_full_base = Radio::base_callsign (m_config.my_callsign ());
+    bool const selected_dx_is_sender = have_selected_dx && sender_base == selected_dx_base;
+    bool const target_is_me = target_base == m_baseCall || target_base == my_full_base;
 
 	// Z TODO: This is inccorect - fix !m_config.superFox() && (SpecOp::HOUND != m_specOp)
+    bool const auto_qrm_guard_state = m_QSOProgress == CALLING
+                                      || m_QSOProgress == REPLYING
+                                      || (!ui->tx1->isEnabled () && m_QSOProgress == REPORT);
     if (m_auto
-        && (m_QSOProgress==REPLYING  or (!ui->tx1->isEnabled () and m_QSOProgress==REPORT))
+        && auto_qrm_guard_state
         && (SpecOp::HOUND != m_specOp) && qAbs (ui->TxFreqSpinBox->value () - df) <= int (stop_tolerance) //
         && message_words.at (2) != "DE"
         && !message_words.at (2).contains (QRegularExpression {"(^(CQ|QRZ))|" + m_baseCall})
+        && have_selected_dx
         // Selected DX station is transmitting to another caller, not to us.
-        && message_words.at (2).contains (Radio::base_callsign (ui->dxCallEntry->text ()))
-        && !message_words.at (3).contains (m_baseCall)
-        && !message_words.at (3).contains (m_config.my_callsign ())) {
+        && selected_dx_is_sender
+        && !target_is_me) {
       // auto stop to avoid accidental QRM
         // Z
         if (m_zdebug) log("Automatic TX halt");
