@@ -492,6 +492,7 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
   m_block_udp_status_updates {false}
 {
   ui->setupUi(this);
+  m_watchdogAnchorUtc = QDateTime::currentDateTimeUtc ();
   setUnifiedTitleAndToolBarOnMac (true);
   createStatusBar();
   add_child_to_event_filter (this);
@@ -1381,7 +1382,21 @@ void MainWindow::on_the_minute ()
     // so it can time out as expected when no QSO starts.
     bool const pause_for_autocq = ui->cbAutoCQ->isChecked ()
                                   && m_QSOProgress == CALLING;
-    if (!pause_for_autocq && m_idleMinutes < watchdog ()) ++m_idleMinutes;
+    auto const now_utc = QDateTime::currentDateTimeUtc ();
+    if (!m_watchdogAnchorUtc.isValid ()) {
+      m_watchdogAnchorUtc = now_utc;
+    }
+    if (pause_for_autocq) {
+      // Freeze WD accrual while AutoCQ is parked in CALLING state.
+      m_watchdogAnchorUtc = now_utc;
+    } else {
+      int const elapsed_seconds = m_watchdogAnchorUtc.secsTo (now_utc);
+      if (elapsed_seconds >= 60 && m_idleMinutes < watchdog ()) {
+        int add_minutes = elapsed_seconds / 60;
+        m_idleMinutes = qMin (watchdog (), m_idleMinutes + add_minutes);
+        m_watchdogAnchorUtc = m_watchdogAnchorUtc.addSecs (add_minutes * 60);
+      }
+    }
     update_watchdog_label ();
   } else {
     // Do not silently reset idle minutes every minute when WD is disabled.
@@ -11584,6 +11599,7 @@ void MainWindow::tx_watchdog (bool triggered)
       if (ui->cbAutoCQ->isChecked()) {
                   ui->txrb6->setChecked (true);
                   m_idleMinutes = 0;
+                  m_watchdogAnchorUtc = QDateTime::currentDateTimeUtc ();
                   update_watchdog_label ();
                 } else {
                   if (m_auto) auto_tx_mode (false);
@@ -11600,6 +11616,7 @@ void MainWindow::tx_watchdog (bool triggered)
     {
       if (m_zdebug) log("TXWatchdog: FALSE");
       m_idleMinutes = 0;
+      m_watchdogAnchorUtc = QDateTime::currentDateTimeUtc ();
       update_watchdog_label ();
     }
   if (prior != triggered) statusUpdate ();

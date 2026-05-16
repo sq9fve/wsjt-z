@@ -742,6 +742,7 @@ private:
   QScopedPointer<PSKReporterWidget> m_pskReporterView;
   QThread * m_pskReporterThread;
   QDateTime m_ignoreListReset;
+  QDateTime m_watchdogAnchorUtc;
   qint64 m_msTxFirst;
   bool m_TxFirstLock = false;
   bool m_AutoTxFreq = false;
