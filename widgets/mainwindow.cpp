@@ -5908,21 +5908,35 @@ void MainWindow::guiUpdate()
   m_tRemaining=m_TRperiod - fmod(tsec,m_TRperiod);
   update_mode_switch_status_label ();
 
-  // Reset FT8 MTD dedup buffer on period boundaries (~2 s before the cycle's
-  // early decode fires). Mirrors wsjtx-improved:8296. Paired with removing the
-  // reset inside decode(), which was wiping the buffer between the early and
-  // final passes of the SAME cycle.
-  if (m_mode == "FT8") {
-    int const s_in_min = nsec % 60;
-    if (s_in_min == 10 || s_in_min == 25 || s_in_min == 40 || s_in_min == 55) {
-      static int s_lastReset = -1;
-      if (s_in_min != s_lastReset) {
-        earlyDecodes = "";
-        m_nDecodes = 0;
-        ndecodes_label.setText("0");
-        s_lastReset = s_in_min;
+  // Reset FT8 MTD dedup buffer once per cycle near the end of the period so
+  // the next cycle starts clean, while preserving early/final pass dedup for
+  // the current cycle. Using cycle phase is more robust than fixed UTC marks
+  // when mode/clock boundaries drift.
+  {
+    static qint64 s_lastResetCycle = -1;
+    static bool s_prevModeWasFT8 = false;
+
+    if (m_mode == "FT8" && m_TRperiod > 0.0)
+      {
+        double const cycle_phase = fmod (tsec, m_TRperiod);
+        qint64 const cycle_index = static_cast<qint64> (tsec / m_TRperiod);
+        double const reset_phase = (m_TRperiod > 2.0) ? (m_TRperiod - 2.0) : 0.0;
+
+        if (cycle_phase >= reset_phase && cycle_index != s_lastResetCycle)
+          {
+            earlyDecodes = "";
+            m_nDecodes = 0;
+            ndecodes_label.setText("0");
+            s_lastResetCycle = cycle_index;
+          }
+        s_prevModeWasFT8 = true;
       }
-    }
+    else if (s_prevModeWasFT8)
+      {
+        // Clear cycle latch when leaving FT8 so re-entry cannot miss first reset.
+        s_lastResetCycle = -1;
+        s_prevModeWasFT8 = false;
+      }
   }
 
   if(m_mode=="Echo") {
