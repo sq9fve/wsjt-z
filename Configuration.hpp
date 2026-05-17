@@ -215,6 +215,8 @@ public:
   bool disableWriteFoxQSO() const;
   bool colourAll() const;
   bool autoCQfiltering() const;
+  void setPileupMode(bool enabled, bool autoCQfiltering);
+  bool pileupMode() const;
   bool rxTotxFreq() const;
   bool udpFiltering() const;
   bool highlightDX() const;
@@ -229,6 +231,7 @@ public:
   int wd_FT2() const;
   bool wd_Timer() const;
   bool processTailenders() const;
+  void setProcessTailenders(bool enabled);
   QString permIgnoreList() const;
   bool showDistance() const ;
   bool showBearing() const ;

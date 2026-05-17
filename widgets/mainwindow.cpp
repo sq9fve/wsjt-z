@@ -1919,6 +1919,8 @@ void MainWindow::readSettings()
   }
   m_settings->endGroup();
 
+  update_auto_call_pileup_mode_ui();
+
   // use these initialisation settings to tune the audio o/p buffer
   // size and audio thread priority
   m_settings->beginGroup ("Tune");
@@ -3228,6 +3230,20 @@ bool MainWindow::eventFilter (QObject * object, QEvent * event)
     case QEvent::KeyPress:
       // fall through
     case QEvent::MouseButtonPress:
+      if (object == ui->cbAutoCall)
+        {
+          auto const* mouse = static_cast<QMouseEvent const *> (event);
+          if (mouse->button () == Qt::RightButton)
+            {
+              bool const enable_pileup_mode = !m_config.pileupMode ();
+              if (enable_pileup_mode && !ui->cb_filtering->isChecked())
+                {
+                  ui->cb_filtering->setChecked(true);
+                }
+              apply_pileup_mode_side_effects(enable_pileup_mode);
+              return true;
+            }
+        }
       // reset the Tx watchdog
       // Z
       if (m_config.wdResetAnywhere())
@@ -3489,6 +3505,24 @@ void MainWindow::setup_status_bar (bool vhf)
   } else {
     if (band_hopping_label.isVisible ()) statusBar ()->removeWidget (&band_hopping_label);
   }
+}
+
+void MainWindow::update_auto_call_pileup_mode_ui()
+{
+  bool const pileup_mode = m_config.pileupMode ();
+  QString const state = pileup_mode ? tr ("ON") : tr ("OFF");
+  ui->cbAutoCall->setToolTip (
+      tr ("Auto Call mode, Similarly to Auto CQ, but the earth doesn't implode. Gluten free. Right-click to toggle pileup mode (directed-call responses only): %1")
+      .arg (state));
+
+  if (pileup_mode)
+    {
+      ui->cbAutoCall->setStyleSheet ("QCheckBox { color: #cc0000; font-weight: 700; }");
+    }
+  else
+    {
+      ui->cbAutoCall->setStyleSheet (QString {});
+    }
 }
 
 bool MainWindow::subProcessFailed (QProcess * process, int exit_code, QProcess::ExitStatus status)
@@ -13038,6 +13072,7 @@ void MainWindow::on_cbAutoCall_toggled(bool b)
         ui->cb_filtering->setEnabled(true);
     }
 
+    update_auto_call_pileup_mode_ui();
     auto_tx_mode(false);
   update_mode_switch_status_label ();
 }
@@ -14123,6 +14158,59 @@ void MainWindow::on_cb_filtering_toggled(bool b) {
     } else {
        ui->cb_filtering->setStyleSheet("");
     }
+}
+
+void MainWindow::apply_pileup_mode_side_effects(bool enabled)
+{
+  if (enabled) {
+    if (!m_savedAutoCQfilteringValid) {
+      m_savedAutoCQfiltering = m_config.autoCQfiltering();
+      m_savedProcessTailenders = m_config.processTailenders();
+      m_savedContinentEU = ui->cb_c_EU->isChecked();
+      m_savedContinentAF = ui->cb_c_AF->isChecked();
+      m_savedContinentAN = ui->cb_c_AN->isChecked();
+      m_savedContinentAS = ui->cb_c_AS->isChecked();
+      m_savedContinentNA = ui->cb_c_NA->isChecked();
+      m_savedContinentSA = ui->cb_c_SA->isChecked();
+      m_savedContinentOC = ui->cb_c_OC->isChecked();
+      m_savedAutoCQfilteringValid = true;
+    }
+    m_config.setPileupMode(true, false);
+    m_config.setProcessTailenders(true);
+    ui->cb_c_EU->setChecked(false);
+    ui->cb_c_AF->setChecked(false);
+    ui->cb_c_AN->setChecked(false);
+    ui->cb_c_AS->setChecked(false);
+    ui->cb_c_NA->setChecked(false);
+    ui->cb_c_SA->setChecked(false);
+    ui->cb_c_OC->setChecked(false);
+  } else {
+    bool auto_cq_filtering = false;
+    if (m_savedAutoCQfilteringValid) {
+      m_config.setProcessTailenders(m_savedProcessTailenders);
+      auto_cq_filtering = m_savedAutoCQfiltering;
+      ui->cb_c_EU->setChecked(m_savedContinentEU);
+      ui->cb_c_AF->setChecked(m_savedContinentAF);
+      ui->cb_c_AN->setChecked(m_savedContinentAN);
+      ui->cb_c_AS->setChecked(m_savedContinentAS);
+      ui->cb_c_NA->setChecked(m_savedContinentNA);
+      ui->cb_c_SA->setChecked(m_savedContinentSA);
+      ui->cb_c_OC->setChecked(m_savedContinentOC);
+    } else {
+      m_config.setProcessTailenders(false);
+      ui->cb_c_EU->setChecked(true);
+      ui->cb_c_AF->setChecked(true);
+      ui->cb_c_AN->setChecked(true);
+      ui->cb_c_AS->setChecked(true);
+      ui->cb_c_NA->setChecked(true);
+      ui->cb_c_SA->setChecked(true);
+      ui->cb_c_OC->setChecked(true);
+    }
+    m_savedAutoCQfilteringValid = false;
+    m_config.setPileupMode(false, auto_cq_filtering);
+  }
+
+  update_auto_call_pileup_mode_ui();
 }
 
 void MainWindow::on_cb_specialMode_currentIndexChanged (int index)
