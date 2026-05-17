@@ -1377,11 +1377,12 @@ void MainWindow::on_the_minute ()
         }
     }
   // Z
-  if (watchdog () && m_mode!="WSPR" && m_mode!="FST4W") {
-    // Keep AutoCQ's existing CALLING pause behavior, but let AutoCall obey WD
-    // so it can time out as expected when no QSO starts.
-    bool const pause_for_autocq = ui->cbAutoCQ->isChecked ()
-                                  && m_QSOProgress == CALLING;
+  auto const wd_limit = watchdog ();
+  bool const wd_enabled = wd_limit > 0.0 && m_mode!="WSPR" && m_mode!="FST4W";
+  // Keep AutoCQ's existing CALLING pause behavior, but let AutoCall obey WD.
+  bool const pause_for_autocq = ui->cbAutoCQ->isChecked ()
+                                && m_QSOProgress == CALLING;
+  if (wd_enabled) {
     auto const now_utc = QDateTime::currentDateTimeUtc ();
     if (!m_watchdogAnchorUtc.isValid ()) {
       m_watchdogAnchorUtc = now_utc;
@@ -1390,12 +1391,12 @@ void MainWindow::on_the_minute ()
       // Freeze WD accrual while AutoCQ is parked in CALLING state.
       m_watchdogAnchorUtc = now_utc;
     } else {
-      int const elapsed_seconds = m_watchdogAnchorUtc.secsTo (now_utc);
-      if (elapsed_seconds >= 60 && m_idleMinutes < watchdog ()) {
-        int add_minutes = elapsed_seconds / 60;
-        m_idleMinutes = qMin (watchdog (), m_idleMinutes + add_minutes);
-        m_watchdogAnchorUtc = m_watchdogAnchorUtc.addSecs (add_minutes * 60);
+      auto elapsed_seconds = m_watchdogAnchorUtc.secsTo (now_utc);
+      if (elapsed_seconds < 0) {
+        m_watchdogAnchorUtc = now_utc;
+        elapsed_seconds = 0;
       }
+      m_idleMinutes = qMin (wd_limit, elapsed_seconds / 60.0);
     }
     update_watchdog_label ();
   } else {
@@ -6063,8 +6064,26 @@ void MainWindow::guiUpdate()
       m_foxWarningDialFreq0 = 0.0;
     }
     // Z
-    if (watchdog() && m_mode!="WSPR" && m_mode!="FST4W"
-        && m_idleMinutes >= watchdog ()) {
+    auto const wd_limit = watchdog ();
+    bool const wd_enabled = wd_limit > 0.0 && m_mode!="WSPR" && m_mode!="FST4W";
+    bool const wd_paused = ui->cbAutoCQ->isChecked() && m_QSOProgress == CALLING;
+    auto const now_utc = QDateTime::currentDateTimeUtc ();
+    if (wd_enabled && !wd_paused) {
+      if (!m_watchdogAnchorUtc.isValid ()) {
+        m_watchdogAnchorUtc = now_utc;
+      }
+      auto elapsed_seconds = m_watchdogAnchorUtc.secsTo (now_utc);
+      if (elapsed_seconds < 0) {
+        m_watchdogAnchorUtc = now_utc;
+        elapsed_seconds = 0;
+      }
+      m_idleMinutes = qMin (wd_limit, elapsed_seconds / 60.0);
+    } else {
+      m_idleMinutes = 0.0;
+      m_watchdogAnchorUtc = now_utc;
+    }
+    update_watchdog_label ();
+    if (wd_enabled && m_idleMinutes >= wd_limit) {
       tx_watchdog (true);       // disable transmit
     }
 
@@ -11624,9 +11643,18 @@ void MainWindow::tx_watchdog (bool triggered)
 
 void MainWindow::update_watchdog_label ()
 {
-  if (watchdog () && m_mode!="WSPR" && m_mode!="FST4W")
+  auto const wd_limit = watchdog ();
+  if (wd_limit > 0.0 && m_mode!="WSPR" && m_mode!="FST4W")
     {
-      watchdog_label.setText (tr ("WD:%1m").arg (watchdog () - m_idleMinutes));
+      auto remaining_minutes = qMax (0.0, wd_limit - m_idleMinutes);
+      if (remaining_minutes < 1.0)
+        {
+          watchdog_label.setText (tr ("WD:%1s").arg (int (remaining_minutes * 60.0 + 0.5)));
+        }
+      else
+        {
+          watchdog_label.setText (tr ("WD:%1m").arg (QString::number (remaining_minutes, 'f', 2)));
+        }
       watchdog_label.setVisible (true);
     }
   else
@@ -14553,13 +14581,13 @@ void MainWindow::resetAutoSwitch() {
   update_mode_switch_status_label ();
 }
 
-int MainWindow::watchdog() {
+double MainWindow::watchdog() {
     if (m_config.wd_Timer()) {
         if (m_mode == "FT8") return m_config.wd_FT8();
         if (m_mode == "FT2") return m_config.wd_FT2();
         if (m_mode == "FT4") return m_config.wd_FT4();
     }
-    return m_config.watchdog();
+  return static_cast<double> (m_config.watchdog());
 }
 
 void MainWindow::on_actionDark_mode_triggered() {

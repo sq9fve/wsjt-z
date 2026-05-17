@@ -439,7 +439,7 @@ private slots:
      void on_actionAbout_WSJT_Z_triggered();
      void on_pb_WDReset_clicked();
      void resetAutoSwitch();
-     int watchdog();
+    double watchdog();
      void on_actionUnfiltered_View_triggered();
      void on_actionPSKReporter_triggered();
      void updateQsoCounter(bool increment);
@@ -614,7 +614,7 @@ private:
   qint32  m_inGain;
   qint32  m_ncw;
   qint32  m_secID;
-  qint32  m_idleMinutes;
+  double  m_idleMinutes;
   qint32  m_nSubMode;
   qint32  m_nSubMode_Q65;
   qint32  m_nSubMode_JT65;
