@@ -303,6 +303,11 @@ contains
                               (nsnr.le.allsnrs(idec) .or.                       &
                               (nsnr.gt.allsnrs(idec) .and.                      &
                               abs(allfreq(idec)-f1).lt.45.0))) then
+                            if(nsnr.gt.allsnrs(idec) .and.                      &
+                                 abs(allfreq(idec)-f1).lt.45.0) then
+                               allsnrs(idec)=nsnr
+                               allfreq(idec)=f1
+                            endif
                             ldupe=.true.
                             exit
                          endif
@@ -313,6 +318,12 @@ contains
                               (nsnr.gt.allsnrs(idec) .and.                      &
                               abs(allfreq(idec)-f1).lt.45.0 .and.               &
                               numthreads.ne.1))) then
+                            if(nsnr.gt.allsnrs(idec) .and.                      &
+                                 abs(allfreq(idec)-f1).lt.45.0 .and.            &
+                                 numthreads.ne.1) then
+                               allsnrs(idec)=nsnr
+                               allfreq(idec)=f1
+                            endif
                             ldupe=.true.
                             exit
                          endif

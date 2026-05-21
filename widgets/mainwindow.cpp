@@ -247,7 +247,7 @@ QString m_hisCall0 = "";
 // Per-cycle dedup buffer for FT8 multi-thread decoder output (race in OMP path
 // of ft8_decodevar.f90). Mirrors wsjtx-orig logic: append every emitted line,
 // skip new lines whose msg substring is already present. Reset at cycle bounds.
-QString earlyDecodes = "";
+QHash<QString, int> earlyDecodesBestSnr;
 
 QSharedMemory mem_qmap("mem_qmap");         //Memory segment to be shared (optionally) with QMAP
 struct {
@@ -3936,7 +3936,7 @@ void MainWindow::read_wav_file (QString const& fname)
   // Reset per-cycle dedup buffer for FT8 multi-thread output (mirrors wsjtx-orig)
   if (m_mode == "FT8"
       && (ui->actionUse_multithreaded_FT8_decoder->isChecked() || m_freqNominal > 45000000)) {
-    earlyDecodes = "";
+    earlyDecodesBestSnr.clear();
   }
   // call diskDat() when done
   int i0=fname.lastIndexOf("_");
@@ -5010,8 +5010,8 @@ void MainWindow::readFromStdout()                             //readFromStdout
   auto const sfox    = m_config.superFox();
   auto const miles   = m_config.miles();
   // Mirror wsjtx-orig's earlyDecodes dedup semantics: active when MTD with
-  // ndecoderstart<2 OR VHF/UHF (>45 MHz). Check is done before processing,
-  // append happens here too (orig appends after display; we do it inline).
+  // ndecoderstart<2 OR VHF/UHF (>45 MHz). Check is done before processing.
+  // Keep the strongest SNR per message key within the cycle.
   bool const mtft8 = (m_mode == "FT8")
       && ui->actionUse_multithreaded_FT8_decoder->isChecked();
   bool const hide_ft8_dupes = ui->actionHide_FT8_dupe_messages->isChecked();
@@ -5019,15 +5019,57 @@ void MainWindow::readFromStdout()                             //readFromStdout
       (m_ft8DecoderStart < 2
        || m_freqNominal > 45000000
        || ui->actionReduce_false_decodes->isChecked());
-  while(proc_jt9.canReadLine()) {
-    auto line_read = proc_jt9.readLine ();
-    if (dedup_on && line_read.size() >= 42
-        && earlyDecodes.contains(line_read.mid(23, 19))) {
-      continue;   // already emitted this cycle (MTD or a7/a8 dupes per wsjtx-orig comment)
+  QVector<QByteArray> batch_lines;
+  while (proc_jt9.canReadLine()) {
+    batch_lines.append(proc_jt9.readLine());
+  }
+
+  QVector<QByteArray> lines_to_process;
+  lines_to_process.reserve(batch_lines.size());
+  if (dedup_on) {
+    QHash<QString, int> batch_best_snr;
+    QHash<QString, QByteArray> batch_best_line;
+
+    // First pass: determine strongest line per duplicate key in this batch.
+    for (auto const& raw_line : batch_lines) {
+      if (raw_line.size() >= 42 && raw_line.indexOf("<DecodeFinished>") < 0) {
+        QString const dupe_key = QString::fromUtf8(raw_line.mid(23, 19));
+        int const snr = DecodedText {QString::fromUtf8(raw_line.constData())}.snr();
+        auto const it = batch_best_snr.constFind(dupe_key);
+        if (it == batch_best_snr.constEnd() || snr > it.value()) {
+          batch_best_snr.insert(dupe_key, snr);
+          batch_best_line.insert(dupe_key, raw_line);
+        }
+      }
     }
-    if (dedup_on && line_read.size() >= 42) {
-      earlyDecodes.append(line_read);
+
+    QSet<QString> emitted_keys;
+    for (auto const& raw_line : batch_lines) {
+      if (!(raw_line.size() >= 42 && raw_line.indexOf("<DecodeFinished>") < 0)) {
+        lines_to_process.append(raw_line);
+        continue;
+      }
+
+      QString const dupe_key = QString::fromUtf8(raw_line.mid(23, 19));
+      if (emitted_keys.contains(dupe_key) || raw_line != batch_best_line.value(dupe_key)) {
+        continue;
+      }
+
+      int const snr = batch_best_snr.value(dupe_key, std::numeric_limits<int>::min());
+      auto const cycle_it = earlyDecodesBestSnr.constFind(dupe_key);
+      if (cycle_it != earlyDecodesBestSnr.constEnd() && snr <= cycle_it.value()) {
+        continue;
+      }
+
+      earlyDecodesBestSnr.insert(dupe_key, snr);
+      emitted_keys.insert(dupe_key);
+      lines_to_process.append(raw_line);
     }
+  } else {
+    lines_to_process = batch_lines;
+  }
+
+  for (auto line_read : lines_to_process) {
     if (m_mode == "FT8" and m_specOp == SpecOp::FOX and m_ActiveStationsWidget != NULL) { // see if we should add this to ActiveStations window
       QString the_line = QString(line_read);
       if (!m_ActiveStationsWidget->wantedOnly() ||
@@ -5917,7 +5959,7 @@ void MainWindow::guiUpdate()
     if (s_in_min == 10 || s_in_min == 25 || s_in_min == 40 || s_in_min == 55) {
       static int s_lastReset = -1;
       if (s_in_min != s_lastReset) {
-        earlyDecodes = "";
+        earlyDecodesBestSnr.clear();
         m_nDecodes = 0;
         ndecodes_label.setText("0");
         s_lastReset = s_in_min;
