@@ -11646,14 +11646,24 @@ void MainWindow::update_watchdog_label ()
   auto const wd_limit = watchdog ();
   if (wd_limit > 0.0 && m_mode!="WSPR" && m_mode!="FST4W")
     {
-      auto remaining_minutes = qMax (0.0, wd_limit - m_idleMinutes);
-      if (remaining_minutes < 1.0)
+      auto const remaining_minutes = qMax (0.0, wd_limit - m_idleMinutes);
+      auto const remaining_seconds = int (remaining_minutes * 60.0 + 0.5);
+      if (remaining_seconds < 60)
         {
-          watchdog_label.setText (tr ("WD:%1s").arg (int (remaining_minutes * 60.0 + 0.5)));
+          watchdog_label.setText (tr ("WD:%1s").arg (remaining_seconds));
         }
       else
         {
-          watchdog_label.setText (tr ("WD:%1m").arg (QString::number (remaining_minutes, 'f', 2)));
+          auto const minutes = remaining_seconds / 60;
+          auto const seconds = remaining_seconds % 60;
+          if (seconds == 0)
+            {
+              watchdog_label.setText (tr ("WD:%1m").arg (minutes));
+            }
+          else
+            {
+              watchdog_label.setText (tr ("WD:%1m%2s").arg (minutes).arg (seconds, 2, 10, QChar ('0')));
+            }
         }
       watchdog_label.setVisible (true);
     }
