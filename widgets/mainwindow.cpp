@@ -7299,6 +7299,24 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
           setTxMsg(3);
           m_QSOProgress=ROGER_REPORT;
         }
+      } else if (message_words.size () > 5
+                 && "R" == message_words.at (4)
+                 && message_words.at (5).contains (grid_regexp)
+                 && SpecOp::EU_VHF != m_specOp) {
+        // "MYCALL DXCALL R GRID" — DX station confirmed our exchange and sent their grid.
+        // In VHF contest modes (NA_VHF/WW_DIGI/ARRL_DIGI/Q65_PILEUP) the protocol
+        // requires us to reply with RRR before logging, so just advance to ROGERS.
+        // In all other modes queue Tx4 (RRR) and keep the QSO open so the normal
+        // closing path (RRR/RR73/73) can finish the contact.
+        bool vhf_contest = (SpecOp::NA_VHF == m_specOp || SpecOp::WW_DIGI == m_specOp
+                            || SpecOp::ARRL_DIGI == m_specOp || SpecOp::Q65_PILEUP == m_specOp);
+        setTxMsg (4);
+        m_QSOProgress = ROGERS;
+        if (!vhf_contest) {
+          // Do not log immediately here; keep the QSO open so TX4 (RRR)
+          // can actually be sent and the normal closing path (RRR/RR73/73)
+          // can complete the QSO.
+        }
       } else {  // no grid on end of msg
         auto const& word_3 = message_words.at (4);
         auto word_3_as_number = word_3.toInt ();
@@ -7354,8 +7372,8 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
                 m_ntx=6;
                 ui->txrb6->setChecked(true);
               }
-            else if ((m_QSOProgress > CALLING && m_QSOProgress < ROGERS)
-                     || "RRR" == word_3)
+            else if (m_QSOProgress < ROGERS
+                     && (m_QSOProgress > CALLING || "RRR" == word_3))
               {
                 m_ntx=5;
                 ui->txrb5->setChecked(true);
