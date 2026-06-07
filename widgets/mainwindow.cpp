@@ -11616,7 +11616,10 @@ void MainWindow::tx_watchdog (bool triggered)
         }
 
       if (ui->cbAutoCQ->isChecked()) {
+                  bool const old_block = ui->txrb6->blockSignals(true);
                   ui->txrb6->setChecked (true);
+                  ui->txrb6->blockSignals(old_block);
+                  auto_tx_mode(true);
                   m_idleMinutes = 0;
                   m_watchdogAnchorUtc = QDateTime::currentDateTimeUtc ();
                   update_watchdog_label ();
