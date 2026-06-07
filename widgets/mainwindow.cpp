@@ -473,6 +473,7 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
   m_tx_when_ready {false},
   m_transmitting {false},
   m_tune {false},
+  m_autoCQWatchdogPending {false},
   m_tx_watchdog {false},
   m_block_pwr_tooltip {false},
   m_PwrBandSetOK {true},
@@ -6084,7 +6085,16 @@ void MainWindow::guiUpdate()
     }
     update_watchdog_label ();
     if (wd_enabled && m_idleMinutes >= wd_limit) {
-      tx_watchdog (true);       // disable transmit
+      if (ui->cbAutoCQ->isChecked()) {
+        if (m_bTxTime) {
+          m_autoCQWatchdogPending = false;
+          tx_watchdog (true);       // disable transmit
+        } else if (!m_autoCQWatchdogPending) {
+          m_autoCQWatchdogPending = true;
+        }
+      } else {
+        tx_watchdog (true);       // disable transmit
+      }
     }
 
     double fTR=float((ms%int(1000.0*m_TRperiod)))/int(1000.0*m_TRperiod);
@@ -11619,6 +11629,9 @@ void MainWindow::tx_watchdog (bool triggered)
                   bool const old_block = ui->txrb6->blockSignals(true);
                   ui->txrb6->setChecked (true);
                   ui->txrb6->blockSignals(old_block);
+                  m_ntx = 6;
+                  if (ui->txrb6->text().contains (QRegularExpression {"^(CQ|QRZ) "}))
+                    set_dateTimeQSO(-1);
                   auto_tx_mode(true);
                   m_idleMinutes = 0;
                   m_watchdogAnchorUtc = QDateTime::currentDateTimeUtc ();
@@ -11637,6 +11650,7 @@ void MainWindow::tx_watchdog (bool triggered)
   else
     {
       if (m_zdebug) log("TXWatchdog: FALSE");
+      m_autoCQWatchdogPending = false;
       m_idleMinutes = 0;
       m_watchdogAnchorUtc = QDateTime::currentDateTimeUtc ();
       update_watchdog_label ();
