@@ -6843,7 +6843,6 @@ void MainWindow::on_txrb4_doubleClicked ()
   auto const& my_callsign = m_config.my_callsign ();
   auto is_compound = my_callsign != m_baseCall;
   m_send_RR73 = !((is_compound && !shortList (my_callsign)) || m_send_RR73);
-  if((m_mode=="FT4" or m_mode=="FT2")) m_send_RR73=true;
   genStdMsgs (m_rpt);
 }
 
@@ -6920,7 +6919,6 @@ void MainWindow::on_txb4_doubleClicked()
   auto const& my_callsign = m_config.my_callsign ();
   auto is_compound = my_callsign != m_baseCall;
   m_send_RR73 = !((is_compound && !shortList (my_callsign)) || m_send_RR73);
-  if((m_mode=="FT4" or m_mode=="FT2")) m_send_RR73=true;
   genStdMsgs (m_rpt);
 }
 
