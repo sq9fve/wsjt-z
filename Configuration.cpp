@@ -1834,6 +1834,7 @@ void Configuration::impl::initialize_models ()
   ui_->cb_clearRx->setChecked(clearRx_);
   ui_->cb_freezeBA->setChecked(freezeBA_);
   ui_->cb_removeExtra->setChecked(removeExtra_);
+  ui_->cb_postSignoffWatchdog->setChecked(settings_->value("postSignoffWatchdog", true).toBool());
   ui_->sb_ignoreListReset->setValue(ignoreListReset_);
   ui_->le_separatorColor->setText(separatorColor_);
   ui_->le_alertCmdLine->setText(alertCmdLine_);
@@ -2288,6 +2289,7 @@ void Configuration::impl::write_settings ()
   settings_->setValue("colourAll", colourAll_);
   settings_->setValue("autoCQfiltering", autoCQfiltering_);
   settings_->setValue("rxTotxFreq", rxTotxFreq_);
+  settings_->setValue("postSignoffWatchdog", ui_->cb_postSignoffWatchdog->isChecked());
   settings_->setValue("udpFiltering", udpFiltering_);
   settings_->setValue("highlightDX", highlightDX_);
   settings_->setValue("dbgScreen", dbgScreen_);

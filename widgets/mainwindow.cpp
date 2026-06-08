@@ -7252,7 +7252,16 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
       // Without this, WD expiring during a long CQ campaign blocks the
       // very next TX cycle, so the reply never goes out (worst on FT2
       // where TR period is 2s and many CQ cycles fit inside one minute).
-      tx_watchdog (false);
+      bool postSignoffResponse = QSettings().value("postSignoffWatchdog", true).toBool()
+          && (m_QSOProgress == SIGNOFF || m_sentFirst73)
+          && message_words.size() > 4
+          && message_words.at(4).startsWith('R')
+          && (message_words.at(2).contains(m_baseCall) || "DE" == message_words.at(2));
+      if (postSignoffResponse) {
+          if (m_zdebug) log("post-signoff response received, leaving watchdog active");
+      } else {
+          tx_watchdog (false);
+      }
       if(message_words.at(4).contains(grid_regexp) and SpecOp::EU_VHF!=m_specOp) {
         if((SpecOp::NA_VHF==m_specOp or SpecOp::WW_DIGI==m_specOp or
             SpecOp::ARRL_DIGI==m_specOp or SpecOp::Q65_PILEUP==m_specOp)

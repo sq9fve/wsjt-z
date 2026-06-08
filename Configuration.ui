@@ -3768,6 +3768,16 @@ Right click for insert and delete options.</string>
              </property>
             </widget>
            </item>
+           <item row="4" column="1">
+            <widget class="QCheckBox" name="cb_postSignoffWatchdog">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;When enabled, late replies after a completed QSO are preferred over starting a new QSO and will not reset the TX watchdog. This helps the closing exchange continue with TX4/5 after a 73.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="text">
+              <string>Leave WD active after post-signoff reply</string>
+             </property>
+            </widget>
+           </item>
            <item row="1" column="0">
             <widget class="QCheckBox" name="cb_disableWriteFoxQSO">
              <property name="toolTip">
