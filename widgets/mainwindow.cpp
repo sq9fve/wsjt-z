@@ -528,6 +528,14 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
      ui->decodedTextBrowser->addAction(ui->actionCopy);
   ui->decodedTextBrowser->setBandActivity(true);
 
+  if (m_config.spot_to_psk_reporter()) {
+    m_pskReporterView.reset(new PSKReporterWidget {nullptr, &m_config, &m_logBook});
+    connect(this, &MainWindow::finished, m_pskReporterView.data(), &QWidget::close);
+    connect(m_pskReporterView.data(), &PSKReporterWidget::clicked, this, &MainWindow::pskTableClicked);
+    connect(m_pskReporterView.data(), &PSKReporterWidget::reportsUpdated, this, &MainWindow::pskReporterReportsUpdated);
+    m_pskReporterView->setFont(m_config.decoded_text_font());
+    m_pskReporterView->hide();
+  }
 
   m_optimizingProgress.setWindowModality (Qt::WindowModal);
   m_optimizingProgress.setAutoReset (false);
@@ -1933,7 +1941,7 @@ void MainWindow::readSettings()
   if (displayActiveStations) on_actionActiveStations_triggered();
   // Z
   if (showRawView) on_actionUnfiltered_View_triggered();
-  if (showPskView) on_actionPSKReporter_triggered();
+  if (showPskView && m_config.spot_to_psk_reporter()) on_actionPSKReporter_triggered();
   if (m_TxFirstLock) ui->txFirstCheckBox->setStyleSheet("background-color: #ff0000;");
 }
 
@@ -5365,11 +5373,17 @@ void MainWindow::readFromStdout()                             //readFromStdout
                                                              m_logBook,m_currentBand,m_config.ppfx(),
                                                              ui->cbCQonly->isVisible() && ui->cbCQonly->isChecked(),
                                                              haveFSpread, fSpread, bDisplayPoints, m_points, ui->cbCQonlyIncl73->isChecked(), m_config.colourAll(), distance, state, isFiltered);
+                  if (m_pskReporterReceivers.contains(decodedtextNoAP.call().toUpper())) {
+                      ui->decodedTextBrowser->highlight_callsign_line(decodedtextNoAP.call(), QColor{}, QColor{}, false, true);
+                  }
               } else {
                   ui->decodedTextBrowser->displayDecodedText(decodedtext1,m_baseCall,m_mode,dxcc,
                                                              m_logBook,m_currentBand,m_config.ppfx(),
                                                              ui->cbCQonly->isVisible() && ui->cbCQonly->isChecked(),
                                                              haveFSpread, fSpread, bDisplayPoints, m_points, ui->cbCQonlyIncl73->isChecked(), m_config.colourAll(), distance, state, isFiltered);
+                  if (m_pskReporterReceivers.contains(decodedtext1.call().toUpper())) {
+                      ui->decodedTextBrowser->highlight_callsign_line(decodedtext1.call(), QColor{}, QColor{}, false, true);
+                  }
               }
 
               if (ui->dxCallEntry->text() == deCall && m_config.highlightDX())
@@ -14552,18 +14566,34 @@ void MainWindow::clearRXWindows() {
 }
 
 void MainWindow::on_actionPSKReporter_triggered() {
-    if (m_pskReporterView && m_pskReporterView->isVisible()) {
-        m_pskReporterView->hide();
+    if (!m_config.spot_to_psk_reporter()) {
+        if (m_pskReporterView && m_pskReporterView->isVisible()) {
+            m_pskReporterView->hide();
+        }
+        showStatusMessage(tr("PSK Reporter is disabled in settings"));
+        return;
+    }
+
+    if (m_pskReporterView) {
+        if (m_pskReporterView->isVisible()) {
+            m_pskReporterView->hide();
+        } else {
+            m_pskReporterView->restoreGeometry(m_pskReporterViewGeometry);
+            m_pskReporterView->showNormal ();
+            m_pskReporterView->setFont(m_config.decoded_text_font ());
+            m_pskReporterView->raise ();
+            m_pskReporterView->activateWindow ();
+        }
     } else {
         m_pskReporterView.reset (new PSKReporterWidget {nullptr, &m_config, &m_logBook});
-        connect (this, &MainWindow::finished, m_pskReporterView.data (), &UnfilteredView::close);
+        connect (this, &MainWindow::finished, m_pskReporterView.data (), &QWidget::close);
+        connect(m_pskReporterView.data(), &PSKReporterWidget::clicked, this, &MainWindow::pskTableClicked);
+        connect(m_pskReporterView.data(), &PSKReporterWidget::reportsUpdated, this, &MainWindow::pskReporterReportsUpdated);
         m_pskReporterView->restoreGeometry(m_pskReporterViewGeometry);
         m_pskReporterView->showNormal ();
         m_pskReporterView->setFont(m_config.decoded_text_font ());
         m_pskReporterView->raise ();
         m_pskReporterView->activateWindow ();
-
-        connect(m_pskReporterView.data(), &PSKReporterWidget::clicked, this, &MainWindow::pskTableClicked);
     }
 }
 
@@ -14602,6 +14632,22 @@ void MainWindow::pskTableClicked(QString callsign, QString band) {
     useNextCall();
     on_txb1_clicked();
     auto_tx_mode(true);
+}
+
+void MainWindow::pskReporterReportsUpdated(QStringList const& receiver_callsigns) {
+    QSet<QString> next;
+    for (auto const& call : receiver_callsigns) {
+        next.insert(call.toUpper());
+    }
+    for (auto const& oldCall : m_pskReporterReceivers) {
+        if (!next.contains(oldCall)) {
+            ui->decodedTextBrowser->highlight_callsign_line(oldCall, QColor {}, QColor {}, false, false);
+        }
+    }
+    for (auto const& call : next) {
+        ui->decodedTextBrowser->highlight_callsign_line(call, QColor {}, QColor {}, false, true);
+    }
+    m_pskReporterReceivers = next;
 }
 
 void MainWindow::logSlots() {

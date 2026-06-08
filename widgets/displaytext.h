@@ -52,9 +52,10 @@ void log(QString s);
   Q_SIGNAL void erased ();
 
   Q_SLOT void insertText (QString const& text, QColor bg = QColor {}, QColor fg = QColor {}
-                          , QString const& call1 = QString {}, QString const& call2 = QString {}, QTextCursor::MoveOperation location=QTextCursor::End);
+                          , QString const& call1 = QString {}, QString const& call2 = QString {}, QTextCursor::MoveOperation location=QTextCursor::End, bool bold=false);
   Q_SLOT void erase ();
   Q_SLOT void highlight_callsign (QString const& callsign, QColor const& bg, QColor const& fg, bool last_period_only);
+  Q_SLOT void highlight_callsign_line (QString const& callsign, QColor const& bg, QColor const& fg, bool last_period_only, bool bold);
 
 private:
   QString leftJustifyAppendage (QString message, QString const& appendage) const;
@@ -66,7 +67,7 @@ private:
 
 
   void flushUpdates();
-  QList<std::tuple<QString, QColor, QColor, QString, QString, QTextCursor::MoveOperation>> m_updateBuffer;
+  QList<std::tuple<QString, QColor, QColor, QString, QString, QTextCursor::MoveOperation, bool>> m_updateBuffer;
 
   void extend_vertical_scrollbar (int min, int max);
 

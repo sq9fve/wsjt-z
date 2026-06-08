@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QPushButton>
 #include <QTableWidget>
+#include <QStringList>
 #include "logbook/logbook.h"
 
 class Configuration;
@@ -27,6 +28,7 @@ public:
     void setFont (QFont f);
 
     Q_SIGNAL void clicked(QString callsing, QString band);
+    Q_SIGNAL void reportsUpdated(QStringList const& receiver_callsigns);
 
 public slots:
     void refresh(bool init = false);
