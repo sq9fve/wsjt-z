@@ -3252,7 +3252,7 @@ bool MainWindow::eventFilter (QObject * object, QEvent * event)
       // reset the Tx watchdog
       // Z
       if (m_config.wdResetAnywhere())
-      tx_watchdog (false);
+        reset_watchdog_on_click ();
       break;
 
     case QEvent::ChildAdded:
@@ -11656,6 +11656,34 @@ void MainWindow::tx_watchdog (bool triggered)
       update_watchdog_label ();
     }
   if (prior != triggered) statusUpdate ();
+}
+
+void MainWindow::reset_watchdog_on_click ()
+{
+  if (!watchdog () || m_mode == "WSPR" || m_mode == "FST4W") {
+    tx_watchdog (false);
+    return;
+  }
+
+  if (m_tx_watchdog) {
+    tx_watchdog (false);
+    return;
+  }
+
+  if (m_bTxTime) {
+    auto const now = QDateTime::currentDateTimeUtc ();
+    qint64 const ms = now.toMSecsSinceEpoch () % 86400000;
+    double const tsec = 0.001 * ms;
+    int const elapsed_seconds = int (fmod (tsec, m_TRperiod));
+
+    m_autoCQWatchdogPending = false;
+    m_watchdogAnchorUtc = now.addSecs (-elapsed_seconds);
+    m_idleMinutes = qMin (watchdog (), elapsed_seconds / 60.0);
+    update_watchdog_label ();
+    return;
+  }
+
+  tx_watchdog (false);
 }
 
 void MainWindow::update_watchdog_label ()
