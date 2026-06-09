@@ -50,7 +50,7 @@ namespace
 
 LogQSO::LogQSO(QString const& programTitle, QSettings * settings
                , Configuration const * config, LogBook * log, QWidget *parent)
-  : QDialog {parent, Qt::WindowStaysOnTopHint | Qt::WindowTitleHint | Qt::WindowSystemMenuHint}
+  : QDialog {parent, Qt::Dialog | Qt::WindowTitleHint | Qt::WindowSystemMenuHint | Qt::WindowStaysOnTopHint}
   , ui(new Ui::LogQSO)
   , m_settings (settings)
   , m_config {config}
@@ -114,7 +114,6 @@ void LogQSO::initLogQSO(QString const& hisCall, QString const& hisGrid, QString 
   QPushButton* okBtn = ui->buttonBox->button(QDialogButtonBox::Ok);
   okBtn->setAutoDefault(true);
   okBtn->setDefault(true);
-  okBtn->setFocus();
   QPushButton* caBtn = ui->buttonBox->button(QDialogButtonBox::Cancel);
   caBtn->setAutoDefault(false);
   caBtn->setDefault(false);
@@ -175,6 +174,9 @@ void LogQSO::initLogQSO(QString const& hisCall, QString const& hisGrid, QString 
   else
     {
       show();
+      raise();
+      activateWindow();
+      okBtn->setFocus();
     }
 }
 
