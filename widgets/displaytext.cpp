@@ -634,7 +634,18 @@ void DisplayText::setHighlightedHoundText(QString t) {
   }
 }
 
-namespace { QString get_timestamp(QTextCursor& cursor); }
+namespace {
+  QString get_timestamp(QTextCursor& cursor);
+
+  bool is_transmitting_call(QString const& line, QString const& callsign)
+  {
+      if (line.isEmpty() || callsign.isEmpty())
+        return false;
+
+      DecodedText decoded {line};
+      return decoded.transmittingCall().toUpper() == callsign.toUpper();
+  }
+}
 
 void DisplayText::highlight_callsign_line (QString const& callsign, QColor const& bg,
                                            QColor const& fg, bool last_period_only, bool bold)
@@ -682,7 +693,8 @@ void DisplayText::highlight_callsign_line (QString const& callsign, QColor const
             format.setForeground (fg);
           else
             format.clearForeground ();
-          format.setFontWeight (bold ? QFont::Bold : QFont::Normal);
+          bool lineBold = bold && is_transmitting_call(cursor.selectedText(), callsign);
+          format.setFontWeight (lineBold ? QFont::Bold : QFont::Normal);
           cursor.mergeCharFormat (format);
         }
     }

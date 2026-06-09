@@ -58,6 +58,9 @@ public:
   // get the first message text word, usually the call
   QString call() const;
 
+  // get the transmitting station call for the decoded message
+  QString transmittingCall() const;
+
   // get the second word, most likely the de call and the third word, most likely grid
   void deCallAndGrid(/*out*/QString& call, QString& grid) const;
 

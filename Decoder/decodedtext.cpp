@@ -223,6 +223,31 @@ void DecodedText::deCallAndGrid(/*out*/QString& call, QString& grid) const
   if ("R" == grid) grid = match.captured ("word4");
 }
 
+QString DecodedText::transmittingCall() const
+{
+  auto const words = messageWords();
+  if (words.size() < 4)
+    return QString {};
+
+  if (words[2] == QLatin1String{"CQ"} || words[2] == QLatin1String{"QRZ"})
+    {
+      return call();
+    }
+  if (words[2] == QLatin1String{"DE"})
+    {
+      if (words.size() > 4)
+        return words[4];
+      return QString {};
+    }
+  if (words.size() > 3 && words[3] == QLatin1String{"DE"})
+    {
+      if (words.size() > 4)
+        return words[4];
+      return QString {};
+    }
+  return words[3];
+}
+
 unsigned DecodedText::timeInSeconds() const
 {
   return 3600 * string_.mid (column_time, 2).toUInt ()

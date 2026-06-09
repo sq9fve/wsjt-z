@@ -5373,16 +5373,16 @@ void MainWindow::readFromStdout()                             //readFromStdout
                                                              m_logBook,m_currentBand,m_config.ppfx(),
                                                              ui->cbCQonly->isVisible() && ui->cbCQonly->isChecked(),
                                                              haveFSpread, fSpread, bDisplayPoints, m_points, ui->cbCQonlyIncl73->isChecked(), m_config.colourAll(), distance, state, isFiltered);
-                  if (m_pskReporterReceivers.contains(decodedtextNoAP.call().toUpper())) {
-                      ui->decodedTextBrowser->highlight_callsign_line(decodedtextNoAP.call(), QColor{}, QColor{}, false, true);
+                  if (m_pskReporterReceivers.contains(decodedtextNoAP.transmittingCall().toUpper())) {
+                      ui->decodedTextBrowser->highlight_callsign_line(decodedtextNoAP.transmittingCall(), QColor{}, QColor{}, false, true);
                   }
               } else {
                   ui->decodedTextBrowser->displayDecodedText(decodedtext1,m_baseCall,m_mode,dxcc,
                                                              m_logBook,m_currentBand,m_config.ppfx(),
                                                              ui->cbCQonly->isVisible() && ui->cbCQonly->isChecked(),
                                                              haveFSpread, fSpread, bDisplayPoints, m_points, ui->cbCQonlyIncl73->isChecked(), m_config.colourAll(), distance, state, isFiltered);
-                  if (m_pskReporterReceivers.contains(decodedtext1.call().toUpper())) {
-                      ui->decodedTextBrowser->highlight_callsign_line(decodedtext1.call(), QColor{}, QColor{}, false, true);
+                  if (m_pskReporterReceivers.contains(decodedtext1.transmittingCall().toUpper())) {
+                      ui->decodedTextBrowser->highlight_callsign_line(decodedtext1.transmittingCall(), QColor{}, QColor{}, false, true);
                   }
               }
 
