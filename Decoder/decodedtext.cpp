@@ -231,6 +231,9 @@ QString DecodedText::transmittingCall() const
 
   if (words[2] == QLatin1String{"CQ"} || words[2] == QLatin1String{"QRZ"})
     {
+      auto const cq_call = CQersCall();
+      if (!cq_call.isEmpty())
+        return cq_call;
       return call();
     }
   if (words[2] == QLatin1String{"DE"})
