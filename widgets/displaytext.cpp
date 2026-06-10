@@ -150,11 +150,11 @@ namespace
 }
 
 void DisplayText::insertText(QString const& text, QColor bg, QColor fg
-                             , QString const& call1, QString const& call2, QTextCursor::MoveOperation location, bool bold)
+                             , QString const& call1, QString const& call2, QTextCursor::MoveOperation location, bool underline)
 {
 
     if (m_freezeUpdates) {
-        m_updateBuffer.append({text, bg, fg, call1, call2, location, bold});
+        m_updateBuffer.append({text, bg, fg, call1, call2, location, underline});
         return;
     }
 
@@ -163,8 +163,8 @@ void DisplayText::insertText(QString const& text, QColor bg, QColor fg
   auto block_format = cursor.blockFormat ();
   auto format = cursor.blockCharFormat ();
   format.setFont (char_font_);
-  if (bold) {
-    format.setFontWeight(QFont::Bold);
+  if (underline) {
+    format.setFontUnderline (true);
   }
   block_format.clearBackground ();
   if (bg.isValid ())
@@ -648,7 +648,7 @@ namespace {
 }
 
 void DisplayText::highlight_callsign_line (QString const& callsign, QColor const& bg,
-                                           QColor const& fg, bool last_period_only, bool bold)
+                                           QColor const& fg, bool last_period_only, bool underline)
 {
   if (!callsign.size ())
     {
@@ -693,8 +693,8 @@ void DisplayText::highlight_callsign_line (QString const& callsign, QColor const
             format.setForeground (fg);
           else
             format.clearForeground ();
-          bool lineBold = bold && is_transmitting_call(cursor.selectedText(), callsign);
-          format.setFontWeight (lineBold ? QFont::Bold : QFont::Normal);
+          bool lineUnderline = underline && is_transmitting_call(cursor.selectedText(), callsign);
+          format.setFontUnderline (lineUnderline);
           cursor.mergeCharFormat (format);
         }
     }
@@ -852,11 +852,11 @@ void DisplayText::flushUpdates() {
         QColor bg, fg;
         QString call1, call2;
         QTextCursor::MoveOperation location;
-        bool bold;
+        bool underline;
 
-        std::tie(text, bg, fg, call1, call2, location, bold) = update;
+        std::tie(text, bg, fg, call1, call2, location, underline) = update;
 
-        insertText(text, bg, fg, call1, call2, location, bold);
+        insertText(text, bg, fg, call1, call2, location, underline);
     }
     m_updateBuffer.clear();
 }
