@@ -1380,25 +1380,17 @@ void MainWindow::on_the_minute ()
   // Z
   auto const wd_limit = watchdog ();
   bool const wd_enabled = wd_limit > 0.0 && m_mode!="WSPR" && m_mode!="FST4W";
-  // Keep AutoCQ's existing CALLING pause behavior, but let AutoCall obey WD.
-  bool const pause_for_autocq = ui->cbAutoCQ->isChecked ()
-                                && m_QSOProgress == CALLING;
   if (wd_enabled) {
     auto const now_utc = QDateTime::currentDateTimeUtc ();
     if (!m_watchdogAnchorUtc.isValid ()) {
       m_watchdogAnchorUtc = now_utc;
     }
-    if (pause_for_autocq) {
-      // Freeze WD accrual while AutoCQ is parked in CALLING state.
+    auto elapsed_seconds = m_watchdogAnchorUtc.secsTo (now_utc);
+    if (elapsed_seconds < 0) {
       m_watchdogAnchorUtc = now_utc;
-    } else {
-      auto elapsed_seconds = m_watchdogAnchorUtc.secsTo (now_utc);
-      if (elapsed_seconds < 0) {
-        m_watchdogAnchorUtc = now_utc;
-        elapsed_seconds = 0;
-      }
-      m_idleMinutes = qMin (wd_limit, elapsed_seconds / 60.0);
+      elapsed_seconds = 0;
     }
+    m_idleMinutes = qMin (wd_limit, elapsed_seconds / 60.0);
     update_watchdog_label ();
   } else {
     // Do not silently reset idle minutes every minute when WD is disabled.
@@ -2759,8 +2751,9 @@ void MainWindow::on_actionFT8WidebandDXCallSearch_toggled(bool checked) { m_FT8W
 
 void MainWindow::on_autoButton_clicked (bool checked)
 {
+  bool const entering_auto = checked && !m_auto;
   // Z
-  if (checked) tx_watchdog(false);
+  if (entering_auto && !m_tx_watchdog) tx_watchdog(false);
   stopWRTimer.stop();             // stop a running Tx3 timer
   m_auto = checked;
   m_maxPoints=-1;
@@ -2793,7 +2786,7 @@ void MainWindow::auto_tx_mode (bool state)
 {
   // Z
   if (m_zdebug) log("AutoTxMode: " + QString::number(state));
-  if (state) tx_watchdog(false);
+  if (state && !m_tx_watchdog && !m_auto) tx_watchdog(false);
 
   if (!state && ui->cbAutoCQ->isChecked()) return;
 
@@ -6067,9 +6060,8 @@ void MainWindow::guiUpdate()
     // Z
     auto const wd_limit = watchdog ();
     bool const wd_enabled = wd_limit > 0.0 && m_mode!="WSPR" && m_mode!="FST4W";
-    bool const wd_paused = ui->cbAutoCQ->isChecked() && m_QSOProgress == CALLING;
     auto const now_utc = QDateTime::currentDateTimeUtc ();
-    if (wd_enabled && !wd_paused) {
+    if (wd_enabled) {
       if (!m_watchdogAnchorUtc.isValid ()) {
         m_watchdogAnchorUtc = now_utc;
       }
