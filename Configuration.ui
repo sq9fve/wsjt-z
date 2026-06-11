@@ -3911,7 +3911,14 @@ Right click for insert and delete options.</string>
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="QSpinBox" name="sb_WD_FT8"/>
+           <widget class="QDoubleSpinBox" name="sb_WD_FT8">
+            <property name="decimals">
+             <number>2</number>
+            </property>
+            <property name="singleStep">
+             <double>0.250000000000000</double>
+            </property>
+           </widget>
           </item>
           <item row="0" column="0">
            <widget class="QLabel" name="label_16">
@@ -3921,7 +3928,14 @@ Right click for insert and delete options.</string>
            </widget>
           </item>
           <item row="1" column="1">
-           <widget class="QSpinBox" name="sb_WD_FT4"/>
+           <widget class="QDoubleSpinBox" name="sb_WD_FT4">
+            <property name="decimals">
+             <number>2</number>
+            </property>
+            <property name="singleStep">
+             <double>0.250000000000000</double>
+            </property>
+           </widget>
           </item>
           <item row="2" column="0">
            <widget class="QLabel" name="label_WD_FT2">
@@ -3931,7 +3945,14 @@ Right click for insert and delete options.</string>
            </widget>
           </item>
           <item row="2" column="1">
-           <widget class="QSpinBox" name="sb_WD_FT2"/>
+           <widget class="QDoubleSpinBox" name="sb_WD_FT2">
+            <property name="decimals">
+             <number>2</number>
+            </property>
+            <property name="singleStep">
+             <double>0.250000000000000</double>
+            </property>
+           </widget>
           </item>
          </layout>
         </widget>

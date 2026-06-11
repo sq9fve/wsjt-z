@@ -492,6 +492,7 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
   m_tx_when_ready {false},
   m_transmitting {false},
   m_tune {false},
+  m_autoCQWatchdogPending {false},
   m_tx_watchdog {false},
   m_block_pwr_tooltip {false},
   m_PwrBandSetOK {true},
@@ -513,6 +514,7 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
   ui->setupUi(this);
   ui->cb_autoModeSwitch->setContextMenuPolicy (Qt::CustomContextMenu);
   update_auto_mode_switch_widget ();
+  m_watchdogAnchorUtc = QDateTime::currentDateTimeUtc ();
   setUnifiedTitleAndToolBarOnMac (true);
   createStatusBar();
   add_child_to_event_filter (this);
@@ -1418,13 +1420,32 @@ void MainWindow::on_the_minute ()
         }
     }
   // Z
-  if (watchdog () && m_mode!="WSPR" && m_mode!="FST4W"
-      && !((ui->cbAutoCQ->isChecked() || ui->cbAutoCall->isChecked())
-           && m_QSOProgress == CALLING)) {
-    if (m_idleMinutes < watchdog ()) ++m_idleMinutes;
+  auto const wd_limit = watchdog ();
+  bool const wd_enabled = wd_limit > 0.0 && m_mode!="WSPR" && m_mode!="FST4W";
+  // Keep AutoCQ's existing CALLING pause behavior, but let AutoCall obey WD.
+  bool const pause_for_autocq = ui->cbAutoCQ->isChecked ()
+                                && m_QSOProgress == CALLING;
+  if (wd_enabled) {
+    auto const now_utc = QDateTime::currentDateTimeUtc ();
+    if (!m_watchdogAnchorUtc.isValid ()) {
+      m_watchdogAnchorUtc = now_utc;
+    }
+    if (pause_for_autocq) {
+      // Freeze WD accrual while AutoCQ is parked in CALLING state.
+      m_watchdogAnchorUtc = now_utc;
+    } else {
+      auto elapsed_seconds = m_watchdogAnchorUtc.secsTo (now_utc);
+      if (elapsed_seconds < 0) {
+        m_watchdogAnchorUtc = now_utc;
+        elapsed_seconds = 0;
+      }
+      m_idleMinutes = qMin (wd_limit, elapsed_seconds / 60.0);
+    }
     update_watchdog_label ();
   } else {
-    tx_watchdog (false);
+    // Do not silently reset idle minutes every minute when WD is disabled.
+    if (m_tx_watchdog) tx_watchdog (false);
+    else update_watchdog_label ();
   }
   update_foxLogWindow_rate(); // update the rate on the window
   if ((!verified && ui->labDXped->isVisible()) or !ui->labDXped->text().contains("Hound"))
@@ -3338,6 +3359,7 @@ bool MainWindow::eventFilter (QObject * object, QEvent * event)
           return true; // eat the event
         }
       }
+        reset_watchdog_on_click ();
       break;
 
     case QEvent::ChildAdded:
@@ -5966,6 +5988,11 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
                       .arg(m_QSOProgress));
   auto const& message_words = message.messageWords ();
   auto is_73 = message_words.filter (QRegularExpression {"^(73|RR73)$"}).size();
+  QString selected_dx_text = ui->dxCallEntry->text ().trimmed ();
+  if (selected_dx_text.isEmpty ()) selected_dx_text = m_hisCall.trimmed ();
+  if (selected_dx_text.isEmpty ()) selected_dx_text = m_nextCall.trimmed ();
+  auto const selected_dx_base = Radio::base_callsign (selected_dx_text);
+  bool const have_selected_dx = !selected_dx_base.isEmpty ();
   auto msg_no_hash = message.clean_string();
   msg_no_hash = msg_no_hash.mid(22).remove("<").remove(">");
 
@@ -6017,17 +6044,37 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
     message.deCallAndGrid(/*out*/hiscall,hisgrid);
     bool addressed_to_me = message_words.at (2).contains (m_baseCall);
     bool tailender_ok = (m_config.processTailenders() || m_lastCall == hiscall || !m_bAutoReply);
+    auto normalized_base = [](QString token)
+      {
+        token.remove ('<');
+        token.remove ('>');
+        return Radio::base_callsign (token);
+      };
+    auto const sender_base = normalized_base (message_words.at (2));
+    auto const target_base = normalized_base (message_words.at (3));
+    auto const my_full_base = Radio::base_callsign (m_config.my_callsign ());
+    bool const selected_dx_is_sender = have_selected_dx && sender_base == selected_dx_base;
+    bool const selected_dx_is_target = have_selected_dx && target_base == selected_dx_base;
+    bool const sender_is_me = sender_base == m_baseCall || sender_base == my_full_base;
+    bool const target_is_me = target_base == m_baseCall || target_base == my_full_base;
+    bool const directed_with_selected_dx = selected_dx_is_sender || selected_dx_is_target;
+    bool const directed_to_me = sender_is_me || target_is_me;
 
-	// Z TODO: This is inccorect - fix !m_config.superFox() && (SpecOp::HOUND != m_specOp)
+    // Z TODO: This is inccorect - fix !m_config.superFox() && (SpecOp::HOUND != m_specOp)
+    bool const auto_qrm_guard_state = m_QSOProgress == CALLING
+                      || m_QSOProgress == REPLYING
+                      || (!ui->tx1->isEnabled () && m_QSOProgress == REPORT);
+    bool const qrm_stop_window_match = m_QSOProgress == CALLING
+      || qAbs (ui->TxFreqSpinBox->value () - df) <= int (stop_tolerance);
     if (m_auto
-        && (m_QSOProgress==REPLYING  or (!ui->tx1->isEnabled () and m_QSOProgress==REPORT))
-        && (SpecOp::HOUND != m_specOp) && qAbs (ui->TxFreqSpinBox->value () - df) <= int (stop_tolerance) //
+        && auto_qrm_guard_state
+        && (SpecOp::HOUND != m_specOp) && qrm_stop_window_match //
         && message_words.at (2) != "DE"
         && !message_words.at (2).contains (QRegularExpression {"(^(CQ|QRZ))|" + m_baseCall})
-        // Selected DX station is transmitting to another caller, not to us.
-        && message_words.at (2).contains (Radio::base_callsign (ui->dxCallEntry->text ()))
-        && !message_words.at (3).contains (m_baseCall)
-        && !message_words.at (3).contains (m_config.my_callsign ())) {
+        && have_selected_dx
+        // Selected DX station is in a directed exchange with someone else, not us.
+      && directed_with_selected_dx
+      && !directed_to_me) {
       // auto stop to avoid accidental QRM
         // Z
         if (m_zdebug) log("Automatic TX halt");
@@ -6036,6 +6083,7 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
       if (ui->cbAutoCQ->isChecked() || ui->cbAutoCall->isChecked()) clearDX();
     } else if (m_auto             // transmit allowed
                && ui->cbAutoSeq->isChecked () // auto-sequencing allowed
+          && !(have_selected_dx && directed_with_selected_dx && !directed_to_me)
                && ((!m_bCallingCQ      // not calling CQ/QRZ
                     && !m_sentFirst73       // not finished QSO
                     && ((message_words.at (2).contains (m_baseCall)
@@ -6065,6 +6113,7 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
     } else if (ui->cbAutoSeq->isChecked()
                && message_words.at (2).contains (m_baseCall)
                && (ui->cbAutoCQ->isChecked() || ui->cbAutoCall->isChecked())
+               && !(have_selected_dx && directed_with_selected_dx && !directed_to_me)
                && m_QSOProgress == CALLING
                && !terminal_signoff
                && (m_config.processTailenders() || m_lastCall == hiscall)
@@ -6347,9 +6396,36 @@ void MainWindow::guiUpdate()
       m_foxWarningDialFreq0 = 0.0;
     }
     // Z
-    if (watchdog() && m_mode!="WSPR" && m_mode!="FST4W"
-        && m_idleMinutes >= watchdog ()) {
-      tx_watchdog (true);       // disable transmit
+    auto const wd_limit = watchdog ();
+    bool const wd_enabled = wd_limit > 0.0 && m_mode!="WSPR" && m_mode!="FST4W";
+    bool const wd_paused = ui->cbAutoCQ->isChecked() && m_QSOProgress == CALLING;
+    auto const now_utc = QDateTime::currentDateTimeUtc ();
+    if (wd_enabled && !wd_paused) {
+      if (!m_watchdogAnchorUtc.isValid ()) {
+        m_watchdogAnchorUtc = now_utc;
+      }
+      auto elapsed_seconds = m_watchdogAnchorUtc.secsTo (now_utc);
+      if (elapsed_seconds < 0) {
+        m_watchdogAnchorUtc = now_utc;
+        elapsed_seconds = 0;
+      }
+      m_idleMinutes = qMin (wd_limit, elapsed_seconds / 60.0);
+    } else {
+      m_idleMinutes = 0.0;
+      m_watchdogAnchorUtc = now_utc;
+    }
+    update_watchdog_label ();
+    if (wd_enabled && m_idleMinutes >= wd_limit) {
+      if (ui->cbAutoCQ->isChecked()) {
+        if (m_bTxTime) {
+          m_autoCQWatchdogPending = false;
+          tx_watchdog (true);       // disable transmit
+        } else if (!m_autoCQWatchdogPending) {
+          m_autoCQWatchdogPending = true;
+        }
+      } else {
+        tx_watchdog (true);       // disable transmit
+      }
     }
 
     double fTR=float((ms%int(1000.0*m_TRperiod)))/int(1000.0*m_TRperiod);
@@ -7291,9 +7367,6 @@ void MainWindow::doubleClickOnCall2(Qt::KeyboardModifiers modifiers)
 
 void MainWindow::doubleClickOnCall(Qt::KeyboardModifiers modifiers)
 {
-  // Z
-  tx_watchdog(false);
-
   QTextCursor cursor;
   if(m_mode=="FST4W") {
     MessageBox::information_message (this,
@@ -7341,6 +7414,9 @@ void MainWindow::doubleClickOnCall(Qt::KeyboardModifiers modifiers)
     }
     return;
   }
+
+  // Valid call selection starts a fresh WD window.
+  tx_watchdog(false);
   m_bDoubleClicked = true;
   m_hisCall0 = m_hisCall;
   processMessage (message, modifiers);
@@ -8656,6 +8732,14 @@ void MainWindow::on_dxCallEntry_textChanged (QString const& call)
   }*/
 
   set_dateTimeQSO (-1);  // reset the QSO start time when DXCall changes
+  auto const previous_base = Radio::base_callsign (m_hisCall);
+  auto const next_base = Radio::base_callsign (call);
+  if (watchdog () && !next_base.isEmpty () && previous_base != next_base)
+    {
+      // New DX target: start a fresh watchdog window instead of carrying
+      // any prior station's elapsed time into this QSO attempt.
+      tx_watchdog (false);
+    }
   m_hisCall = call;
   ui->dxGridEntry->clear();
   statusChanged();
@@ -11946,11 +12030,45 @@ void MainWindow::tx_watchdog (bool triggered)
       m_bTxTime=false;
       // Z
       if (ui->cbAutoCall->isChecked() && ui->cb_IgnoreAfterWD->isChecked())
-          ui->pte_IgnoredStations->appendPlainText(m_hisCall);
+        {
+          auto const active_call = ui->dxCallEntry->text().trimmed();
+          auto const his_call = m_hisCall.trimmed();
+          auto const ignore_candidate = active_call.isEmpty () ? his_call : active_call;
+          auto const candidate_base = Radio::base_callsign (ignore_candidate);
+          auto const his_base = Radio::base_callsign (his_call);
+          bool const same_target = !candidate_base.isEmpty ()
+                                   && !his_base.isEmpty ()
+                                   && candidate_base == his_base;
+          bool const target_uncertain = his_base.isEmpty () || candidate_base.isEmpty ();
+          bool const already_ignored = m_ignoredStationsCache.contains (ignore_candidate)
+                                       || m_ignoredStationsCache.contains (candidate_base);
+
+          if ((same_target || target_uncertain)
+              && !ignore_candidate.isEmpty ()
+              && !already_ignored)
+            {
+              ui->pte_IgnoredStations->appendPlainText(ignore_candidate);
+              if (m_zdebug) log("TXWatchdog: Added to ignore list after WD timeout: " + ignore_candidate);
+            }
+          else if (m_zdebug)
+            {
+              log("TXWatchdog: Skip ignore-list add (candidate='" + ignore_candidate
+                  + "', same_target=" + QString::number (same_target)
+                  + ", target_uncertain=" + QString::number (target_uncertain)
+                  + ", already_ignored=" + QString::number (already_ignored) + ")");
+            }
+        }
 
       if (ui->cbAutoCQ->isChecked()) {
+                  bool const old_block = ui->txrb6->blockSignals(true);
                   ui->txrb6->setChecked (true);
+                  ui->txrb6->blockSignals(old_block);
+                  m_ntx = 6;
+                  if (ui->txrb6->text().contains (QRegularExpression {"^(CQ|QRZ) "}))
+                    set_dateTimeQSO(-1);
+                  auto_tx_mode(true);
                   m_idleMinutes = 0;
+                  m_watchdogAnchorUtc = QDateTime::currentDateTimeUtc ();
                   update_watchdog_label ();
                 } else {
                   if (m_auto) auto_tx_mode (false);
@@ -11966,17 +12084,66 @@ void MainWindow::tx_watchdog (bool triggered)
   else
     {
       if (m_zdebug) log("TXWatchdog: FALSE");
+      m_autoCQWatchdogPending = false;
       m_idleMinutes = 0;
+      m_watchdogAnchorUtc = QDateTime::currentDateTimeUtc ();
       update_watchdog_label ();
     }
   if (prior != triggered) statusUpdate ();
 }
 
+void MainWindow::reset_watchdog_on_click ()
+{
+  if (!watchdog () || m_mode == "WSPR" || m_mode == "FST4W") {
+    tx_watchdog (false);
+    return;
+  }
+
+  if (m_tx_watchdog) {
+    tx_watchdog (false);
+    return;
+  }
+
+  if (m_bTxTime) {
+    auto const now = QDateTime::currentDateTimeUtc ();
+    qint64 const ms = now.toMSecsSinceEpoch () % 86400000;
+    double const tsec = 0.001 * ms;
+    int const elapsed_seconds = int (fmod (tsec, m_TRperiod));
+
+    m_autoCQWatchdogPending = false;
+    m_watchdogAnchorUtc = now.addSecs (-elapsed_seconds);
+    m_idleMinutes = qMin (watchdog (), elapsed_seconds / 60.0);
+    update_watchdog_label ();
+    return;
+  }
+
+  tx_watchdog (false);
+}
+
 void MainWindow::update_watchdog_label ()
 {
-  if (watchdog () && m_mode!="WSPR" && m_mode!="FST4W")
+  auto const wd_limit = watchdog ();
+  if (wd_limit > 0.0 && m_mode!="WSPR" && m_mode!="FST4W")
     {
-      watchdog_label.setText (tr ("WD:%1m").arg (watchdog () - m_idleMinutes));
+      auto const remaining_minutes = qMax (0.0, wd_limit - m_idleMinutes);
+      auto const remaining_seconds = int (remaining_minutes * 60.0 + 0.5);
+      if (remaining_seconds < 60)
+        {
+          watchdog_label.setText (tr ("WD:%1s").arg (remaining_seconds));
+        }
+      else
+        {
+          auto const minutes = remaining_seconds / 60;
+          auto const seconds = remaining_seconds % 60;
+          if (seconds == 0)
+            {
+              watchdog_label.setText (tr ("WD:%1m").arg (minutes));
+            }
+          else
+            {
+              watchdog_label.setText (tr ("WD:%1m%2s").arg (minutes).arg (seconds, 2, 10, QChar ('0')));
+            }
+        }
       watchdog_label.setVisible (true);
     }
   else
@@ -13530,7 +13697,17 @@ void MainWindow::on_cbAutoCQ_toggled(bool b)
 }
 
 void MainWindow::on_btn_addToIgnore_clicked( ) {
-    ui->pte_IgnoredStations->appendPlainText(m_hisCall);
+    auto const candidate = ui->dxCallEntry->text().trimmed().isEmpty ()
+                           ? m_hisCall.trimmed ()
+                           : ui->dxCallEntry->text().trimmed ();
+    if (candidate.isEmpty ()) return;
+
+    if (!m_filterCacheValid) rebuildFilterCache();
+    if (!m_ignoredStationsCache.contains (candidate)
+        && !m_ignoredStationsCache.contains (Radio::base_callsign (candidate)))
+      {
+        ui->pte_IgnoredStations->appendPlainText(candidate);
+      }
 }
 
 void MainWindow::on_btn_clearIgnore_clicked( ) {
@@ -14025,7 +14202,16 @@ void MainWindow::on_actionIgnore_station_triggered() {
     DecodedText message {cursor.selectedText().trimmed().remove("TU; ")};
     message.deCallAndGrid (/*out*/ dxCall, dxGrid);
 
-    ui->pte_IgnoredStations->appendPlainText(dxCall);
+    dxCall = dxCall.trimmed();
+    if (!dxCall.isEmpty ())
+      {
+        if (!m_filterCacheValid) rebuildFilterCache();
+        if (!m_ignoredStationsCache.contains (dxCall)
+            && !m_ignoredStationsCache.contains (Radio::base_callsign (dxCall)))
+          {
+            ui->pte_IgnoredStations->appendPlainText(dxCall);
+          }
+      }
     cursor.movePosition(QTextCursor::End); // move/modify/etc.
 
     if (ui->decodedTextBrowser->hasFocus()) {
@@ -15027,13 +15213,13 @@ void MainWindow::clearPounceState()
     m_prioFreq = 0;
 }
 
-int MainWindow::watchdog() {
+double MainWindow::watchdog() {
     if (m_config.wd_Timer()) {
         if (m_mode == "FT8") return m_config.wd_FT8();
         if (m_mode == "FT2") return m_config.wd_FT2();
         if (m_mode == "FT4") return m_config.wd_FT4();
     }
-    return m_config.watchdog();
+  return static_cast<double> (m_config.watchdog());
 }
 
 void MainWindow::on_actionDark_mode_triggered() {
