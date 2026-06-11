@@ -76,14 +76,16 @@ void PSKReporterWidget::responseHandler(QNetworkReply * reply) {
 void PSKReporterWidget::updateTable(QString data) {
     ui->pskTable->setRowCount(0);
     ui->pskTable->setSortingEnabled(false);
-    QSet<QString> receivers;
+    QStringList receiver_records;
     QXmlStreamReader reader(data);
     while(!reader.hasError() && !reader.atEnd()) {
         if(reader.readNext() == QXmlStreamReader::StartElement) {
             if ( reader.name() == "receptionReport") {
                 QString callsign = reader.attributes().value("receiverCallsign").toString();
                 if (callsign == m_config->my_callsign()) continue;
-                receivers.insert(callsign.toUpper());
+                QString mode = reader.attributes().value("mode").toString().toUpper();
+                QString frequency = reader.attributes().value("frequency").toString();
+                receiver_records.append(QStringLiteral("%1|%2|%3").arg(callsign.toUpper(), mode, frequency));
                 int r = 0;
                 ui->pskTable->insertRow(r);
                 QString time = QDateTime::fromTime_t(reader.attributes().value("flowStartSeconds").toUInt()).toUTC().toString("hh:mm:ss");
@@ -136,7 +138,7 @@ void PSKReporterWidget::updateTable(QString data) {
         }
     }
 
-    emit reportsUpdated(receivers.values());
+    emit reportsUpdated(receiver_records);
     QTimer::singleShot (0, this, SLOT (scrollToBottom()));
 
 }

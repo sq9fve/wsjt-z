@@ -28,7 +28,7 @@ public:
     void setFont (QFont f);
 
     Q_SIGNAL void clicked(QString callsing, QString band);
-    Q_SIGNAL void reportsUpdated(QStringList const& receiver_callsigns);
+    Q_SIGNAL void reportsUpdated(QStringList const& receiver_report_records);
 
 public slots:
     void refresh(bool init = false);

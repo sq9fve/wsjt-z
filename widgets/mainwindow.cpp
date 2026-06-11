@@ -14634,10 +14634,20 @@ void MainWindow::pskTableClicked(QString callsign, QString band) {
     auto_tx_mode(true);
 }
 
-void MainWindow::pskReporterReportsUpdated(QStringList const& receiver_callsigns) {
+void MainWindow::pskReporterReportsUpdated(QStringList const& receiver_report_records) {
     QSet<QString> next;
-    for (auto const& call : receiver_callsigns) {
-        next.insert(call.toUpper());
+    QString currentBand = m_currentBand.trimmed();
+    if (currentBand.isEmpty()) currentBand = ui->bandComboBox->currentText().trimmed();
+    for (auto const& record : receiver_report_records) {
+        auto parts = record.split('|');
+        if (parts.size() != 3) continue;
+        QString call = parts[0].toUpper();
+        QString mode = parts[1].toUpper();
+        Frequency frequency = parts[2].toULongLong();
+        if (mode != m_mode.toUpper()) continue;
+        QString reportBand = m_config.bands()->find(frequency);
+        if (reportBand != currentBand) continue;
+        next.insert(call);
     }
     for (auto const& oldCall : m_pskReporterReceivers) {
         if (!next.contains(oldCall)) {
