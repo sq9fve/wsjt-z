@@ -3687,6 +3687,16 @@ Right click for insert and delete options.</string>
              </property>
             </widget>
            </item>
+           <item row="6" column="0" colspan="3">
+            <widget class="QCheckBox" name="psk_reporter_band_activity_check_box">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enable PSK Reporter band activity feedback so data is passed automatically without opening the PSK Reporter window.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="text">
+              <string>Enable PSK Reporter band activity feedback</string>
+             </property>
+            </widget>
+           </item>
            <item row="2" column="1" colspan="2">
             <widget class="QCheckBox" name="cb_showState">
              <property name="text">
@@ -3724,7 +3734,7 @@ Right click for insert and delete options.</string>
              </property>
             </widget>
            </item>
-           <item row="6" column="2">
+           <item row="7" column="2">
             <widget class="QSpinBox" name="sb_padding">
              <property name="value">
               <number>42</number>

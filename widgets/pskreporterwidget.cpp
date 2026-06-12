@@ -37,6 +37,9 @@ PSKReporterWidget::PSKReporterWidget(QWidget *parent, Configuration * cfg, LogBo
     connect(timer, SIGNAL(timeout()), this, SLOT(refresh()));
     timer->start(5 * 60 * 1000);
 
+    connect(networkManager, &QNetworkAccessManager::finished,
+            this, &PSKReporterWidget::responseHandler);
+
     refresh(true);
 }
 
@@ -54,12 +57,10 @@ void PSKReporterWidget::refresh(bool init) {
     QUrl url("https://www.pskreporter.info/cgi-bin/pskquery5.pl");
     url.setQuery(query);
     QNetworkRequest networkRequest(url);
-    connect(networkManager, SIGNAL(finished(QNetworkReply*)), this, SLOT(responseHandler(QNetworkReply*)));
     networkManager->get(networkRequest);
 }
 
 void PSKReporterWidget::responseHandler(QNetworkReply * reply) {
-    disconnect(networkManager, SIGNAL(finished(QNetworkReply*)), this, SLOT(responseHandler(QNetworkReply*)));
     if(reply->error() == QNetworkReply::NoError) {
        QString data = (QString)reply->readAll();
        if (data.length()) updateTable(data);

@@ -528,7 +528,7 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
      ui->decodedTextBrowser->addAction(ui->actionCopy);
   ui->decodedTextBrowser->setBandActivity(true);
 
-  if (m_config.spot_to_psk_reporter()) {
+  if (m_config.psk_reporter_band_activity()) {
     m_pskReporterView.reset(new PSKReporterWidget {nullptr, &m_config, &m_logBook});
     connect(this, &MainWindow::finished, m_pskReporterView.data(), &QWidget::close);
     connect(m_pskReporterView.data(), &PSKReporterWidget::clicked, this, &MainWindow::pskTableClicked);
@@ -14638,6 +14638,7 @@ void MainWindow::pskReporterReportsUpdated(QStringList const& receiver_report_re
     QSet<QString> next;
     QString currentBand = m_currentBand.trimmed();
     if (currentBand.isEmpty()) currentBand = ui->bandComboBox->currentText().trimmed();
+    const bool useBandFilter = !currentBand.isEmpty();
     for (auto const& record : receiver_report_records) {
         auto parts = record.split('|');
         if (parts.size() != 3) continue;
@@ -14646,7 +14647,7 @@ void MainWindow::pskReporterReportsUpdated(QStringList const& receiver_report_re
         Frequency frequency = parts[2].toULongLong();
         if (mode != m_mode.toUpper()) continue;
         QString reportBand = m_config.bands()->find(frequency);
-        if (reportBand != currentBand) continue;
+        if (useBandFilter && reportBand != currentBand) continue;
         next.insert(call);
     }
     for (auto const& oldCall : m_pskReporterReceivers) {
