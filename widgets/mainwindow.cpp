@@ -2862,10 +2862,6 @@ void MainWindow::auto_tx_mode (bool state)
 {
   // Z
   if (m_zdebug) log("AutoTxMode: " + QString::number(state));
-  if (state && m_tx_watchdog) {
-    if (m_zdebug) log("AutoTxMode ignored because TX watchdog is active");
-    return;
-  }
   if (state) tx_watchdog(false);
 
   if (!state && ui->cbAutoCQ->isChecked()) return;
