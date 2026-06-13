@@ -1448,7 +1448,7 @@ void MainWindow::on_the_minute ()
     else update_watchdog_label ();
   }
   update_foxLogWindow_rate(); // update the rate on the window
-  if ((!verified && ui->labDXped->isVisible()) or !ui->labDXped->text().contains("Hound"))
+  if ((!verified && ui->labDXped->isVisible()) || !ui->labDXped->text().contains("Hound"))
     ui->labDXped->setStyleSheet("QLabel {background-color: red; color: white;}");
   verified = false;
 }
