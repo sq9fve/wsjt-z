@@ -15148,6 +15148,7 @@ void MainWindow::ZProcess ()
                             resetAutoSwitch();
                             if (!m_autoModeSwitch) clearDX();
                             if (m_zdebug) log("ZProcess: Switched to AutoCQ");
+                            tx_watchdog(false);
                         } else {
                             toggleBands();
                         }
