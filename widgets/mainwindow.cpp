@@ -286,12 +286,15 @@ namespace
 
   bool token_matches_call (QString const& token, QString const& call)
   {
+    auto normalized_token = token;
+    normalized_token.remove ('<');
+    normalized_token.remove ('>');
     auto const& base_call = Radio::base_callsign (call);
-    return !token.isEmpty ()
-      && (token == call
-          || token == base_call
-          || token.endsWith ("/" + base_call)
-          || token.startsWith (base_call + "/"));
+    return !normalized_token.isEmpty ()
+      && (normalized_token == call
+          || normalized_token == base_call
+          || normalized_token.endsWith ("/" + base_call)
+          || normalized_token.startsWith (base_call + "/"));
   }
 
   bool composite_rr73 (QStringList const& words)
