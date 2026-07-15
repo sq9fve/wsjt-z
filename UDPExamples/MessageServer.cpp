@@ -78,6 +78,7 @@ public:
   QString revision_;
   QHostAddress multicast_group_address_;
   QSet<QString> network_interfaces_;
+  QHostAddress bind_address_;
   static BindMode constexpr bind_mode_ = ShareAddress | ReuseAddressHint;
   struct Client
   {
@@ -474,7 +475,8 @@ void MessageServer::start (port_type port, QHostAddress const& multicast_group_a
   // qDebug () << "MessageServer::start port:" << port << "multicast addr:" << multicast_group_address.toString () << "network interfaces:" << network_interface_names;
   if (port != m_->localPort ()
       || multicast_group_address != m_->multicast_group_address_
-      || network_interface_names != m_->network_interfaces_)
+      || network_interface_names != m_->network_interfaces_
+      || bind_address != m_->bind_address_)
     {
       m_->leave_multicast_group ();
       if (impl::UnconnectedState != m_->state ())
@@ -493,6 +495,7 @@ void MessageServer::start (port_type port, QHostAddress const& multicast_group_a
         {
           m_->multicast_group_address_ = multicast_group_address;
           m_->network_interfaces_ = network_interface_names;
+          m_->bind_address_ = bind_address;
           // A caller-supplied bind_address (e.g. QHostAddress::LocalHost)
           // takes precedence and restricts the listener to that address;
           // this is used by the WSJT-Z control server so it is not exposed
