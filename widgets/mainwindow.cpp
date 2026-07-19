@@ -6151,12 +6151,16 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
                     .arg(composite_rr73_detected)
                     .arg(raw_words.size())
                     .arg(raw_words.size() > 1 ? raw_words.at(1) : "N/A"));
-  // Check if we're either primary or secondary caller in composite RR73
-  bool composite_rr73_for_me = composite_rr73_detected
-    && ((token_matches_call (raw_words.value (0), m_config.my_callsign ())
-         || token_matches_call (raw_words.value (0), m_baseCall))
-        || (raw_words.size() > 2 && (token_matches_call (raw_words.value (2), m_config.my_callsign ())
-                                      || token_matches_call (raw_words.value (2), m_baseCall))));
+  // Check if we're the tertiary caller (the remote) in composite RR73
+  // Format: PRIMARY RR73; SECONDARY <TERTIARY> REPORT
+  // Only the tertiary caller should respond to the composite RR73
+  bool composite_rr73_for_me = false;
+  if (composite_rr73_detected && message.is_composite_message())
+    {
+      auto const& fields = message.composite_message_fields();
+      composite_rr73_for_me = token_matches_call(fields.tertiary_caller, m_config.my_callsign())
+                              || token_matches_call(fields.tertiary_caller, m_baseCall);
+    }
   if (m_zdebug && composite_rr73_detected) 
     log(QString("composite_rr73_for_me=%1 (primary[0]=%2, secondary[2]=%3)")
         .arg(composite_rr73_for_me)
@@ -7755,9 +7759,12 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
   QStringList w=message.clean_string ().mid(22).remove("<").remove(">").split(" ",SkipEmptyParts);
   auto const& raw_words = message.clean_string().split(" ", SkipEmptyParts);
   bool const composite_rr73_detected = composite_rr73(raw_words);
-  bool const composite_rr73_for_me = composite_rr73_detected
-    && (token_matches_call(raw_words.value(0), m_config.my_callsign())
-        || token_matches_call(raw_words.value(0), m_baseCall));
+  // Check if we're the tertiary caller (the remote) in composite RR73
+  // Format: PRIMARY RR73; SECONDARY <TERTIARY> REPORT
+  // Only the tertiary caller should respond to the composite RR73
+  bool const composite_rr73_for_me = composite_rr73_detected && message.is_composite_message()
+    && (token_matches_call(message.composite_message_fields().tertiary_caller, m_config.my_callsign())
+        || token_matches_call(message.composite_message_fields().tertiary_caller, m_baseCall));
 
   // Z
   dxLookup(hiscall, hisgrid);
