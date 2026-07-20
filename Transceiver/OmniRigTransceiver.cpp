@@ -252,7 +252,7 @@ int OmniRigTransceiver::do_start ()
         {
           throw_qstring (tr ("OmniRig: don't know how to set rig frequency"));
         }
-      switch (rig_->GetRxFrequency () - test_frequency)
+      switch (static_cast<qint64>(rig_->GetRxFrequency () - test_frequency))
         {
         case -5: resolution = -1; break;  // 10Hz truncated
         case 5: resolution = 1; break;    // 10Hz rounded
