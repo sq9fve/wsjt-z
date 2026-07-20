@@ -679,7 +679,7 @@ void CPlotter::DrawOverlay()                   //DrawOverlay()
   }
     if(m_mode=="JT9" or m_mode=="JT65" or m_mode.mid(0,4)=="WSPR" or m_mode=="Q65"
       or m_mode=="FT8" or m_mode=="FT4" or m_mode=="FT2" or m_mode.startsWith("FST4")) {
-    painter0.setPen(penRed);
+    overPainter.setPen(penRed);
     x1=XfromFreq(m_txFreq);
     x2=XfromFreq(m_txFreq+bw);
     if(m_bSuperFox) x2=XfromFreq(m_txFreq+1500.0);
@@ -689,9 +689,9 @@ void CPlotter::DrawOverlay()                   //DrawOverlay()
       x2=XfromFreq(m_txFreq+0.5*bw);
     }
     // Draw the red goal post
-    painter0.drawLine(x1,yTxTop,x1,yTxTop+yh);
-    painter0.drawLine(x1,yTxTop,x2,yTxTop);
-    painter0.drawLine(x2,yTxTop,x2,yTxTop+yh);
+    overPainter.drawLine(x1,yTxTop,x1,yTxTop+yh);
+    overPainter.drawLine(x1,yTxTop,x2,yTxTop);
+    overPainter.drawLine(x2,yTxTop,x2,yTxTop+yh);
   }
 
   QPainter hoverPainter(&m_HoverOverlayPixmap);
