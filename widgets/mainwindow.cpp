@@ -2012,6 +2012,7 @@ void MainWindow::readSettings()
   ui->syncSpinBox->setValue(m_minSync);
   ui->cbAutoSeq->setChecked (m_settings->value ("AutoSeq", false).toBool());
   ui->cbFirst->setChecked (ui->respondComboBox->currentIndex() == 1);
+  ui->cb_autoCallPriority->setEnabled (!ui->cbFirst->isChecked ());
   ui->cbRxAll->setChecked (m_settings->value ("RxAll", false).toBool());
 // m_bShMsgs=m_settings->value("ShMsgs",false).toBool();
   m_bSWL=m_settings->value("SWL",false).toBool();
@@ -12438,6 +12439,8 @@ void MainWindow::on_cbFirst_toggled(bool checked)
       ui->respondComboBox->setCurrentIndex(desired_index);
       ui->respondComboBox->blockSignals(blocked);
     }
+  // Enable cb_autoCallPriority only when cbFirst is disabled
+  ui->cb_autoCallPriority->setEnabled(!checked);
 }
 
 void MainWindow::on_respondComboBox_currentIndexChanged(int index)
