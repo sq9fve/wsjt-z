@@ -3681,6 +3681,9 @@ list. The list can be maintained in Settings (F2).</string>
                             <property name="enabled">
                              <bool>true</bool>
                             </property>
+                            <property name="minimum">
+                             <number>1</number>
+                            </property>
                             <property name="maximum">
                              <number>999</number>
                             </property>
@@ -3691,8 +3694,44 @@ list. The list can be maintained in Settings (F2).</string>
                             <property name="enabled">
                              <bool>true</bool>
                             </property>
+                            <property name="minimum">
+                             <number>1</number>
+                            </property>
                             <property name="maximum">
                              <number>999</number>
+                            </property>
+                           </widget>
+                          </item>
+                          <item row="2" column="0">
+                           <widget class="QLabel" name="label_autoRxCount">
+                            <property name="text">
+                             <string>AutoRx #</string>
+                            </property>
+                           </widget>
+                          </item>
+                          <item row="2" column="1">
+                           <widget class="QSpinBox" name="sb_autoRxCount">
+                            <property name="enabled">
+                             <bool>true</bool>
+                            </property>
+                            <property name="maximum">
+                             <number>999</number>
+                            </property>
+                           </widget>
+                          </item>
+                          <item row="2" column="2">
+                           <widget class="QLineEdit" name="le_autoRxLeft">
+                            <property name="enabled">
+                             <bool>true</bool>
+                            </property>
+                            <property name="maximumSize">
+                             <size>
+                              <width>40</width>
+                              <height>16777215</height>
+                             </size>
+                            </property>
+                            <property name="readOnly">
+                             <bool>true</bool>
                             </property>
                            </widget>
                           </item>
@@ -3750,7 +3789,7 @@ list. The list can be maintained in Settings (F2).</string>
                             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;When Mode Switching is enabled, alternate TX even/odd at the start of each AutoCQ cycle.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                            </property>
                            <property name="text">
-                            <string>AutoCQ alternate even/odd</string>
+                            <string>AutoCQ even/odd</string>
                            </property>
                           </widget>
                          </item>
@@ -3771,7 +3810,7 @@ list. The list can be maintained in Settings (F2).</string>
                           </spacer>
                          </item>
                          <item>
-                          <widget class="QLabel" name="label_23">
+                          <widget class="QLabel" name="label_autoCallPriority">
                            <property name="text">
                             <string>Priority:</string>
                            </property>
