@@ -13,8 +13,33 @@
   <property name="windowTitle">
    <string>PSKReporter</string>
   </property>
-  <layout class="QGridLayout" name="gridLayout">
-   <item row="0" column="0">
+  <layout class="QVBoxLayout" name="mainLayout">
+   <property name="spacing">
+    <number>0</number>
+   </property>
+   <property name="leftMargin">
+    <number>0</number>
+   </property>
+   <property name="topMargin">
+    <number>0</number>
+   </property>
+   <property name="rightMargin">
+    <number>0</number>
+   </property>
+   <property name="bottomMargin">
+    <number>0</number>
+   </property>
+   <item>
+    <widget class="QMenuBar" name="menuBar">
+     <widget class="QMenu" name="menuView">
+      <property name="title">
+       <string>&amp;View</string>
+      </property>
+     </widget>
+     <addaction name="menuView"/>
+    </widget>
+   </item>
+   <item>
     <widget class="QTableWidget" name="pskTable">
      <property name="styleSheet">
       <string notr="true"/>
@@ -74,6 +99,7 @@
     </widget>
    </item>
   </layout>
+
  </widget>
  <resources/>
  <connections/>

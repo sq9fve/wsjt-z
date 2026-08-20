@@ -562,7 +562,7 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
   ui->decodedTextBrowser->setBandActivity(true);
 
   if (m_config.psk_reporter_band_activity()) {
-    m_pskReporterView.reset(new PSKReporterWidget {nullptr, &m_config, &m_logBook});
+    m_pskReporterView.reset(new PSKReporterWidget {nullptr, &m_config, &m_logBook, m_multi_settings});
     connect(this, &MainWindow::finished, m_pskReporterView.data(), &QWidget::close);
     connect(m_pskReporterView.data(), &PSKReporterWidget::clicked, this, &MainWindow::pskTableClicked);
     connect(m_pskReporterView.data(), &PSKReporterWidget::reportsUpdated, this, &MainWindow::pskReporterReportsUpdated);
@@ -15952,7 +15952,7 @@ void MainWindow::on_actionPSKReporter_triggered() {
             m_pskReporterView->raise ();
         }
     } else {
-        m_pskReporterView.reset (new PSKReporterWidget {nullptr, &m_config, &m_logBook});
+        m_pskReporterView.reset (new PSKReporterWidget {nullptr, &m_config, &m_logBook, m_multi_settings});
         connect (this, &MainWindow::finished, m_pskReporterView.data (), &QWidget::close);
         connect(m_pskReporterView.data(), &PSKReporterWidget::clicked, this, &MainWindow::pskTableClicked);
         connect(m_pskReporterView.data(), &PSKReporterWidget::reportsUpdated, this, &MainWindow::pskReporterReportsUpdated);

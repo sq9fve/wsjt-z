@@ -8,10 +8,12 @@
 #include "logbook/logbook.h"
 
 class Configuration;
+class MultiSettings;
 class QNetworkAccessManager;
 class QNetworkRequest;
 class QNetworkReply;
 class LogBook;
+class QTimer;
 
 namespace Ui {
 class PSKReporterWidget;
@@ -23,7 +25,7 @@ class PSKReporterWidget : public QWidget
 
 public:
     QTableWidget pskTable;
-    explicit PSKReporterWidget(QWidget *parent = nullptr, Configuration *cfg = nullptr, LogBook *log = nullptr);
+    explicit PSKReporterWidget(QWidget *parent = nullptr, Configuration *cfg = nullptr, LogBook *log = nullptr, MultiSettings *settings = nullptr);
     ~PSKReporterWidget();
     void setFont (QFont f);
 
@@ -40,11 +42,18 @@ private:
     QNetworkAccessManager * networkManager;
     Configuration * m_config;
     LogBook * m_logBook;
-
+    MultiSettings * m_settings;
+    QTimer * m_refreshTimer;
+    bool m_geometryRestored = false;
 
 private slots:
     void responseHandler(QNetworkReply * reply);
     void on_pskTable_cellDoubleClicked(int row, int column);
+
+protected:
+    void showEvent(QShowEvent * event) override;
+    void closeEvent(QCloseEvent * event) override;
+    void resizeEvent(QResizeEvent * event) override;
 
 
 };
