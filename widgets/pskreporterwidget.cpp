@@ -54,7 +54,7 @@ void PSKReporterWidget::refresh(bool init) {
     QUrlQuery query;
     query.addQueryItem("flowStartSeconds", "-3600");
     query.addQueryItem("callsign", m_config->my_callsign());
-    QUrl url("https://www.pskreporter.info/cgi-bin/pskquery5.pl");
+    QUrl url("https://add.pskreporter.info/cgi-bin/pskquery5.pl");
     url.setQuery(query);
     QNetworkRequest networkRequest(url);
     networkManager->get(networkRequest);
