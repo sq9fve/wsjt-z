@@ -670,7 +670,10 @@ void TCITransceiver::onMessageReceived(const QString &str)
         printf("%s Cmd_VFO : %s\n",QDateTime::QDateTime::currentDateTimeUtc().toString("hh:mm:ss.zzz").toStdString().c_str(),args.join("|").toStdString().c_str());
         printf("band_change:%d busy_other_frequency_:%d timer1_remaining:%d timer2_remaining:%d",band_change,busy_other_frequency_,tci_timer7_->remainingTime(),tci_timer2_->remainingTime()); //was timer1 and timer2
         if(args.at(0)==rx_ && args.at(1) == "0") {
-          if (args.at(2).left(1) != "-") rx_frequency_ = args.at(2);
+          if (args.at(2).left(1) != "-") {
+            rx_frequency_ = args.at(2);
+            update_rx_frequency (string_to_frequency (rx_frequency_));
+          }
           CAT_TRACE("Rx VFO Frequency from SDR is :");
           CAT_TRACE(rx_frequency_);
           if (!tci_Ready && requested_rx_frequency_.isEmpty()) requested_rx_frequency_ = rx_frequency_;

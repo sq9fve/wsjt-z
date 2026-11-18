@@ -999,6 +999,7 @@ private:
 
   QSharedMemory *mem_jt9;
   QString m_QSOText;
+  QString m_application_font_style_sheet_rule_;
   unsigned m_downSampleFactor;
   QThread::Priority m_audioThreadPriority;
   bool m_bandEdited;

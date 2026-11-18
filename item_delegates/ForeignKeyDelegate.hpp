@@ -3,6 +3,9 @@
 
 #include <QStyledItemDelegate>
 #include <QScopedPointer>
+#include <QFont>
+#include <QSize>
+#include <QString>
 
 class CandidateKeyFilter;
 
@@ -36,8 +39,12 @@ public:
 private:
   QWidget * createEditor (QWidget * parent, QStyleOptionViewItem const&, QModelIndex const&) const override;
   QSize sizeHint (QStyleOptionViewItem const&, QModelIndex const&) const override;
+  void invalidate_size_hint_cache ();
 
   QScopedPointer<CandidateKeyFilter> candidate_key_filter_;
+  mutable QFont cached_size_hint_font_;
+  mutable QString cached_size_hint_style_sheet_;
+  mutable QSize cached_size_hint_;
 };
 
 #endif

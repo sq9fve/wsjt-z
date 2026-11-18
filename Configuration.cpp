@@ -1613,8 +1613,7 @@ Configuration::impl::impl (Configuration * self, QNetworkAccessManager * network
 
   ui_->frequencies_table_view->horizontalHeader ()->setResizeContentsPrecision (0);
   ui_->frequencies_table_view->horizontalHeader ()->moveSection(8, 3); // swap preferred to be in front of description
-  ui_->frequencies_table_view->verticalHeader ()->setSectionResizeMode (QHeaderView::ResizeToContents);
-  ui_->frequencies_table_view->verticalHeader ()->setResizeContentsPrecision (0);
+  ui_->frequencies_table_view->verticalHeader ()->setSectionResizeMode (QHeaderView::Fixed);
   ui_->frequencies_table_view->sortByColumn (FrequencyList_v2_101::frequency_column, Qt::AscendingOrder);
   ui_->frequencies_table_view->setColumnHidden (FrequencyList_v2_101::frequency_mhz_column, true);
   ui_->frequencies_table_view->setColumnHidden (FrequencyList_v2_101::source_column, true);
