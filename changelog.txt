@@ -1,4 +1,11 @@
 == Changelog
+V2.0.20
+[fixes]
+- TCI audio: no more spurious "frequency is OOB" failure right after rig open. The OOB check previously read the band combo box before the TCI server's frequency had reached the rig state, and the first (invisible) failure silently closed and reopened the TCI connection. The guard now treats a zero/unknown rig frequency as "not ready yet" instead of OOB, and the TCI transceiver propagates the frequency immediately when the server sends it instead of waiting for the next poll cycle (SpudGunMan, issue #173, tested by SQ9FK on FLEX-6500/AetherSDR).
+
+[performance]
+- Startup GUI freeze of ~16-20 s eliminated. The Settings > Frequencies table recomputed per-row combo-box size hints for the whole frequency list every time the application font/style sheet changed, blocking the GUI thread (ForeignKeyDelegate::sizeHint). The size hint is now cached and invalidated only on model or font/style changes, the frequencies table uses fixed-height rows, and set_application_font() replaces its previous style-sheet rule instead of appending a new one each call. Measured on an i5-7200U: window usable after ~9 s instead of ~19 s, with no "not responding" state (SpudGunMan, issue #174, profiled and verified by SQ9FK).
+
 V2.0.19
 [fixes]
 - LogQSO dialog no longer hangs/ghosts on the first QSO with Auto-CQ/Auto-Call active; the first contact logs correctly with the callsign preserved through the signal/slot timing race, and retries remain blocked by the early-return check (PR #125, SpudGunMan).
